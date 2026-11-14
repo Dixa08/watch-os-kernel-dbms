@@ -1,0 +1,29 @@
+# Build directories
+build/
+.pio/
+bin/
+*.exe
+*.o
+*.a
+*.obj
+*.lib
+
+# SQLite databases
+*.db
+*.db-journal
+*.db-wal
+*.db-shm
+data/*.db
+data/*.db-wal
+data/*.db-shm
+!data/watchos_sessions.db
+
+# Python caches and exported temporary logs
+__pycache__/
+*.py[cod]
+*.jsonl
+
+# IDE and tool files
+.vscode/
+.idea/
+CMakeUserPresets.json

@@ -1,0 +1,82 @@
+{
+  "version": 1,
+  "author": "Dixa",
+  "editor": "wokwi",
+  "parts": [
+    { "type": "board-esp32-devkit-c-v4", "id": "esp", "top": -28.8, "left": -292.76, "attrs": {} },
+    {
+      "type": "wokwi-ili9341",
+      "id": "tft1",
+      "top": -235.1,
+      "left": 164.4,
+      "rotate": 90,
+      "attrs": {}
+    },
+    {
+      "type": "wokwi-led",
+      "id": "activeLed",
+      "top": 236.4,
+      "left": -274.6,
+      "attrs": { "color": "green", "label": "ACTIVE" }
+    },
+    {
+      "type": "wokwi-resistor",
+      "id": "activeR",
+      "top": 301.55,
+      "left": -278.4,
+      "attrs": { "value": "220" }
+    },
+    {
+      "type": "wokwi-led",
+      "id": "deadlockLed",
+      "top": 226.8,
+      "left": -130.6,
+      "attrs": { "color": "red", "label": "DEADLOCK" }
+    },
+    {
+      "type": "wokwi-resistor",
+      "id": "deadlockR",
+      "top": 291.95,
+      "left": -144,
+      "attrs": { "value": "220" }
+    },
+    {
+      "type": "wokwi-pushbutton",
+      "id": "startBtn",
+      "top": 35,
+      "left": -57.6,
+      "attrs": { "color": "green", "label": "START" }
+    },
+    {
+      "type": "wokwi-pushbutton",
+      "id": "emergencyBtn",
+      "top": 111.8,
+      "left": -57.6,
+      "attrs": { "color": "red", "label": "EMERGENCY EXIT" }
+    }
+  ],
+  "connections": [
+    [ "esp:TX", "$serialMonitor:RX", "", [] ],
+    [ "esp:RX", "$serialMonitor:TX", "", [] ],
+    [ "tft1:VCC", "esp:3V3", "red", [] ],
+    [ "tft1:GND", "esp:GND.1", "black", [] ],
+    [ "tft1:CS", "esp:15", "green", [] ],
+    [ "tft1:D/C", "esp:2", "green", [] ],
+    [ "tft1:RESET", "esp:4", "green", [] ],
+    [ "tft1:MOSI", "esp:23", "green", [] ],
+    [ "tft1:SCK", "esp:18", "green", [] ],
+    [ "tft1:MISO", "esp:19", "green", [] ],
+    [ "tft1:LED", "esp:3V3", "red", [] ],
+    [ "esp:25", "activeR:1", "green", [] ],
+    [ "activeR:2", "activeLed:A", "green", [] ],
+    [ "activeLed:C", "esp:GND.1", "black", [] ],
+    [ "esp:26", "deadlockR:1", "red", [] ],
+    [ "deadlockR:2", "deadlockLed:A", "red", [] ],
+    [ "deadlockLed:C", "esp:GND.1", "black", [] ],
+    [ "startBtn:1.l", "esp:32", "green", [] ],
+    [ "startBtn:2.l", "esp:GND.1", "black", [] ],
+    [ "emergencyBtn:1.l", "esp:33", "red", [] ],
+    [ "emergencyBtn:2.l", "esp:GND.1", "black", [] ]
+  ],
+  "dependencies": {}
+}
