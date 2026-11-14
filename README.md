@@ -145,7 +145,7 @@ cmake --build build
 ```powershell
 ctest --test-dir build --output-on-failure
 ```
-All 9 test suites will execute:
+All 13 test suites declared in `CMakeLists.txt` will execute:
 1. `TestIdGenerator`
 2. `TestWorkloadValidator`
 3. `TestDbPersistence`
@@ -155,6 +155,10 @@ All 9 test suites will execute:
 7. `TestDiskScheduling`
 8. `TestSessionLifecycle`
 9. `TestCompleteKernelAnalysis`
+10. `TestDbSchemaAudit`
+11. `TestEdgeCasesSchedulers`
+12. `TestEndToEndWorkflows`
+13. `TestDiscoveredRegressions`
 
 ### Running WATCH OS (Native CLI)
 ```powershell
@@ -184,3 +188,144 @@ python show_tables.py               # Inspect all 25 normalized tables and row c
 python dbms_queries.py --verify-all # Run automated SQL verification queries
 python dbms_queries.py              # Launch interactive SQL & guarded DML console
 ```
+
+---
+
+## Fresh Laptop Setup & Step-by-Step Run Guide
+
+This section describes a clean Windows setup for the ESP32/Wokwi firmware and
+the Python DBMS tools. The repository's Python scripts use SQLite and other
+Python standard-library modules; `sync_wokwi_local.py` additionally requires
+PySerial to connect to Wokwi's RFC2217 serial server.
+
+### Prerequisites
+
+Install the following software:
+
+| Software | Required for | Notes |
+|---|---|---|
+| Windows 10/11 and Git | Clone and work with the repository | Install Git for Windows and use PowerShell or a VS Code terminal. |
+| Python 3.10 or newer | `demo.py`, `sync_wokwi_local.py`, `dbms_queries.py`, `show_tables.py` | Include `python` and `pip` on PATH. The scripts use `sqlite3` from the Python standard library. |
+| Visual Studio Code | Wokwi/PlatformIO IDE workflow | Not required if using PlatformIO Core and another compatible editor from the command line. |
+| PlatformIO Core | Build ESP32 firmware | Install it through the PlatformIO IDE extension or install PlatformIO Core separately and make `pio` available on PATH. |
+| C++17 toolchain and CMake 3.15+ | Optional native CMake targets/tests | On Windows, the checked-in CMake preset uses MinGW Makefiles, so install MinGW-w64 with `g++` and `mingw32-make` to use that preset. |
+
+Install these VS Code extensions for the integrated firmware/simulation flow:
+
+- **PlatformIO IDE** (`platformio.platformio-ide`) — provides the PlatformIO project environment and firmware build integration.
+- **Wokwi Simulator** (`wokwi.wokwi-vscode`) — opens `diagram.json` and runs the ESP32 simulation.
+
+Optional editor extensions:
+
+- **CMake Tools** (`ms-vscode.cmake-tools`) and **C/C++** (`ms-vscode.cpptools`) for CMake configuration, builds, tests, and C++ navigation.
+- **Python** (`ms-python.python`) for Python editing and virtual-environment selection. It is not needed to execute the scripts.
+
+No separate SQLite installation is needed for the project database: CMake compiles
+the bundled SQLite amalgamation under `third_party/sqlite3`, and Python includes
+the `sqlite3` module. No separate Arduino IDE or manually installed ESP32
+toolchain/libraries are required for PlatformIO; the first PlatformIO build
+downloads the configured Espressif platform, Arduino framework, compiler, and
+libraries.
+
+The firmware dependencies declared in `platformio.ini` are:
+
+- `adafruit/Adafruit ILI9341@^1.6.2`
+- `adafruit/Adafruit GFX Library@^1.13.0`
+- `SPI` is supplied by the ESP32 Arduino framework and is not an extra
+  PlatformIO library dependency.
+
+The only third-party Python package is listed in `requirements.txt`:
+
+- `pyserial>=3.5,<4.0` — required by the live serial bridge for
+  `rfc2217://localhost:4000`.
+
+### Clone and prepare Python tools
+
+Open PowerShell in the folder where you want the project, then replace
+`<repository-url>` with the repository's clone URL:
+
+```powershell
+git clone <repository-url>
+Set-Location .\Kernel-main
+
+py -3.10 -m venv .venv
+.\.venv\Scripts\Activate.ps1
+python -m pip install --upgrade pip
+python -m pip install -r requirements.txt
+```
+
+If PowerShell blocks activation, allow scripts for the current user or invoke
+the virtual-environment interpreter directly, for example:
+`.\.venv\Scripts\python.exe demo.py`.
+
+### Build the ESP32 firmware
+
+Open the cloned project folder in VS Code (with PlatformIO IDE installed), or
+use a terminal where PlatformIO Core's `pio` command is available:
+
+```powershell
+pio run -j1
+```
+
+The first build may take longer while PlatformIO downloads the Espressif
+platform, ESP32 Arduino framework, toolchain, and the Adafruit libraries. The
+firmware and ELF files are written to `.pio/build/esp32dev/`; these paths match
+the firmware entries in `wokwi.toml`.
+
+### Start Wokwi and capture serial exports
+
+1. Open the project folder in VS Code and start the Wokwi simulation for
+   `diagram.json`. The diagram contains the ESP32, ILI9341 TFT, LEDs, and
+   buttons; firmware pin assignments are defined in the source.
+2. Leave the simulation running so its RFC2217 serial server is available on
+   the port configured by `wokwi.toml` (`4000`).
+3. In a separate terminal, launch the utilities:
+
+   ```powershell
+   python demo.py
+   ```
+
+4. Choose **1** to run the live Wokwi serial bridge. It connects to
+   `rfc2217://localhost:4000`, saves marked Markdown/CSV exports under
+   `reports/`, and imports session data into `data/watchos_sessions.db`.
+   Press **Ctrl+C** in that terminal to stop capture.
+5. Press the virtual START button (GPIO 32) in Wokwi to launch the CLI. The
+   button also cycles the TFT views while a session is active.
+
+The bridge imports existing `reports/report_WOS-*.csv` files when it starts,
+so offline CSV exports can be recovered. The `reports/` directory is created
+by the bridge if it does not exist. Keep the simulation running while the
+bridge is capturing.
+
+### Run the database utilities
+
+Run these commands from the repository root with the Python environment
+activated:
+
+```powershell
+python show_tables.py
+python dbms_queries.py --verify-all
+python dbms_queries.py
+```
+
+Alternatively, choose **2**, **3**, or **4** in `demo.py` to launch those
+utilities. They use the project database at `data/watchos_sessions.db`.
+
+### Optional native CMake workflow
+
+The project also declares CMake targets and CTest tests. With CMake 3.15+ and
+a C++17 compiler installed, configure and build with:
+
+```powershell
+cmake -S . -B build
+cmake --build build
+ctest --test-dir build --output-on-failure
+```
+
+The checked-in `CMakePresets.json` selects the `MinGW Makefiles` generator, so
+the preset workflow specifically needs MinGW-w64 and `mingw32-make`. The native
+CMake target is separate from the ESP32 PlatformIO firmware. In particular,
+the current `src/main.cpp` contains ESP32/Arduino entry-point code; if it does
+not compile with a native toolchain, use the PlatformIO build and Wokwi steps
+above for the supported firmware run rather than treating CMake as a
+replacement for the ESP32 build.
