@@ -1,3 +1,5 @@
+#if defined(ARDUINO)
+
 #include <Arduino.h>
 #include <atomic>
 #include <cstdio>
@@ -145,3 +147,14 @@ void loop() {
     watchos::hardware::TftDashboard::instance().service();
     vTaskDelay(pdMS_TO_TICKS(LOOP_DELAY_MS));
 }
+#else
+#include "watchos/cli/cli_app.hpp"
+
+int main(int argc, char* argv[]) {
+    (void)argc;
+    (void)argv;
+
+    watchos::cli::CliApp app("data/watchos_sessions.db");
+    return app.run();
+}
+#endif
