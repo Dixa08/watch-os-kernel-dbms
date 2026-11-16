@@ -77,9 +77,7 @@ void testRegressionMultiVersionWorkloadIsolation() {
     sessionRepo.saveWorkload(sess, true);
 
     // Run 1 under version 1
-    runRepo.createRun("RUN-V1", sessId, "CPU", "v1");
     runRepo.recordSchedulingResult({"RUN-V1", 1, 0, 5, 1, 5, 5, 0, 0});
-    runRepo.updateRunStatus("RUN-V1", "COMPLETED");
 
     // Add process for version 2
     sess.addProcess(process::Process(2, 0, 3, 2));
@@ -87,10 +85,8 @@ void testRegressionMultiVersionWorkloadIsolation() {
     sessionRepo.saveWorkload(sess, true);
 
     // Run 2 under version 2
-    runRepo.createRun("RUN-V2", sessId, "CPU", "v2");
     runRepo.recordSchedulingResult({"RUN-V2", 1, 0, 5, 1, 8, 8, 3, 3});
     runRepo.recordSchedulingResult({"RUN-V2", 2, 0, 3, 2, 3, 3, 0, 0});
-    runRepo.updateRunStatus("RUN-V2", "COMPLETED");
 
     // Check version 1 results are preserved
     auto r1Results = runRepo.getSchedulingResultsForRun("RUN-V1");

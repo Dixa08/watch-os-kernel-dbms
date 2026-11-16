@@ -184,6 +184,11 @@ void CliApp::handleResumeSession() {
         analysisMenu.runMenuLoop();
         pauseBeforeMainMenu();
     } else if (!subChoice.empty() && subChoice[0] == '2') {
+        std::cout << "\nSession Description [" << session->getDescription() << "]: ";
+        std::string description;
+        if (ConsoleUi::readLine(std::cin, description) && !description.empty()) {
+            session->setDescription(description);
+        }
         session::ConfigurationManager configMgr(std::cin, std::cout);
         bool finalized = configMgr.runReviewAndEditMenu(*session);
         std::string err;

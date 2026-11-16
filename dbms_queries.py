@@ -18,6 +18,7 @@ QUERIES: dict[str, tuple[str, str]] = {
         """
         SELECT s.session_id,
                COALESCE(s.title, s.description, '(untitled)') AS session_title,
+               s.description AS session_description,
                s.created_at,
                s.status,
                s.active_config_version,
@@ -25,6 +26,8 @@ QUERIES: dict[str, tuple[str, str]] = {
                COALESCE(
                    GROUP_CONCAT(
                        'PID=' || p.pid ||
+                       ' name=' || COALESCE(NULLIF(p.process_name, ''), '(unnamed)') ||
+                       ' description=' || COALESCE(p.description, '') ||
                        ' arrival=' || p.arrival_time ||
                        ' burst=' || p.cpu_burst ||
                        ' priority=' || p.priority,
@@ -43,31 +46,24 @@ QUERIES: dict[str, tuple[str, str]] = {
         """,
     ),
     "2": (
-        "CPU scheduling results compared across simulation runs",
+        "CPU scheduling results grouped by run",
         """
-        SELECT r.run_id,
-               r.session_id,
-               r.module,
-               r.parameters,
-               r.created_at,
-               COUNT(sr.pid) AS process_count,
-               ROUND(AVG(sr.waiting_time), 2) AS avg_waiting_time,
-               ROUND(AVG(sr.turnaround_time), 2) AS avg_turnaround_time,
-               ROUND(AVG(sr.response_time), 2) AS avg_response_time
-        FROM simulation_runs AS r
-        LEFT JOIN scheduling_results AS sr ON sr.run_id = r.run_id
-        GROUP BY r.run_id, r.session_id, r.module, r.parameters, r.created_at
-        ORDER BY r.created_at DESC
+        SELECT run_id,
+               COUNT(pid) AS process_count,
+               ROUND(AVG(waiting_time), 2) AS avg_waiting_time,
+               ROUND(AVG(turnaround_time), 2) AS avg_turnaround_time,
+               ROUND(AVG(response_time), 2) AS avg_response_time
+        FROM scheduling_results
+        GROUP BY run_id
+        ORDER BY run_id DESC
         LIMIT 30
         """,
     ),
     "3": (
         "Deadlock detection and Banker's safe-state results",
         """
-        SELECT dr.run_id,
-               r.session_id,
-               r.created_at,
-               dr.is_deadlocked,
+        SELECT run_id,
+               is_deadlocked,
                dr.is_safe,
                dr.safe_sequence,
                dr.deadlocked_processes,
@@ -75,51 +71,42 @@ QUERIES: dict[str, tuple[str, str]] = {
                dr.frequency_deadlocks,
                dr.empirical_frequency
         FROM deadlock_results AS dr
-        JOIN simulation_runs AS r ON r.run_id = dr.run_id
-        ORDER BY r.created_at DESC
+        ORDER BY dr.id DESC
         LIMIT 30
         """,
     ),
     "4": (
-        "Virtual memory and disk I/O performance",
+        "Simulation events and process state transitions",
         """
-        SELECT mr.run_id,
-               mr.algorithm,
-               'MEMORY' AS subsystem,
-               mr.total_references AS workload_size,
-               mr.page_faults AS primary_metric,
-               mr.page_hits AS secondary_metric,
-               mr.fault_ratio AS ratio,
-               mr.thrashing_detected AS status
-        FROM memory_results AS mr
+        SELECT run_id, timestamp, entity_id, event_type, details
+        FROM simulation_events
         UNION ALL
-        SELECT ir.run_id,
-               ir.algorithm,
-               'DISK_IO' AS subsystem,
-               NULL AS workload_size,
-               ir.total_head_movement AS primary_metric,
-               ir.average_head_movement AS secondary_metric,
-               NULL AS ratio,
-               ir.service_order AS status
-        FROM io_results AS ir
-        ORDER BY run_id DESC, subsystem, algorithm
+        SELECT run_id, timestamp, pid,
+               from_state || ' -> ' || to_state AS event_type, reason AS details
+        FROM process_state_history
+        ORDER BY run_id DESC, timestamp
         LIMIT 100
         """,
     ),
     "5": (
-        "Security and permission audit events",
+        "Access policies and report exports",
         """
-        SELECT pe.run_id,
-               r.session_id,
-               r.created_at,
-               pe.actor,
-               pe.resource,
-               pe.operation,
-               pe.decision,
-               pe.reason
-        FROM permission_events AS pe
-        JOIN simulation_runs AS r ON r.run_id = pe.run_id
-        ORDER BY r.created_at DESC
+        SELECT session_id,
+               'POLICY' AS record_type,
+               user_or_role AS subject,
+               resource_name AS resource_or_path,
+               operation,
+               policy AS detail
+        FROM access_policies
+        UNION ALL
+        SELECT session_id,
+               'REPORT' AS record_type,
+               report_format AS subject,
+               export_path AS resource_or_path,
+               generated_at AS operation,
+               run_id AS detail
+        FROM reports
+        ORDER BY session_id DESC
         LIMIT 100
         """,
     ),
@@ -133,16 +120,41 @@ def table_columns(connection: sqlite3.Connection, table: str) -> set[str]:
 
 
 def verify_schema(connection: sqlite3.Connection) -> None:
+    allowed_tables = {
+        "sessions", "processes", "simulation_events", "process_state_history",
+        "reports", "deadlock_results", "access_policies", "scheduling_results",
+    }
+    actual_tables = {
+        row[0]
+        for row in connection.execute(
+            "SELECT name FROM sqlite_master "
+            "WHERE type = 'table' AND name NOT LIKE 'sqlite_%'"
+        )
+    }
+    if actual_tables != allowed_tables:
+        missing = sorted(allowed_tables - actual_tables)
+        unexpected = sorted(actual_tables - allowed_tables)
+        raise RuntimeError(
+            f"Database must contain exactly the eight supported tables; "
+            f"missing={missing}, unexpected={unexpected}"
+        )
+
     required = {
         "sessions": {
             "session_id", "title", "description", "created_at", "updated_at",
             "status", "active_config_version",
         },
         "processes": {
-            "session_id", "config_version", "pid", "arrival_time", "cpu_burst", "priority",
+            "session_id", "config_version", "pid", "process_name", "description",
+            "arrival_time", "cpu_burst", "priority",
         },
-        "simulation_runs": {
-            "run_id", "session_id", "module", "parameters", "created_at",
+        "simulation_events": {"run_id", "timestamp", "event_type"},
+        "process_state_history": {
+            "run_id", "pid", "timestamp", "from_state", "to_state",
+        },
+        "reports": {
+            "report_id", "session_id", "run_id", "report_format", "export_path",
+            "generated_at",
         },
         "scheduling_results": {
             "run_id", "pid", "waiting_time", "turnaround_time", "response_time",
@@ -152,16 +164,8 @@ def verify_schema(connection: sqlite3.Connection) -> None:
             "deadlocked_processes", "frequency_trials", "frequency_deadlocks",
             "empirical_frequency",
         },
-        "memory_results": {
-            "run_id", "algorithm", "total_references", "page_faults", "page_hits",
-            "fault_ratio", "thrashing_detected",
-        },
-        "io_results": {
-            "run_id", "algorithm", "total_head_movement", "average_head_movement",
-            "service_order",
-        },
-        "permission_events": {
-            "run_id", "actor", "resource", "operation", "decision", "reason",
+        "access_policies": {
+            "session_id", "user_or_role", "resource_name", "operation", "policy",
         },
     }
     for table, expected in required.items():
@@ -171,6 +175,8 @@ def verify_schema(connection: sqlite3.Connection) -> None:
             raise RuntimeError(
                 f"Database schema mismatch for {table}: missing {', '.join(sorted(missing))}"
             )
+    if "metadata" in table_columns(connection, "sessions"):
+        raise RuntimeError("The sessions table must not contain a metadata column")
 
 
 def display_rows(cursor: sqlite3.Cursor) -> None:
@@ -311,10 +317,10 @@ def menu(database: Path = DATABASE) -> int:
             print(
                 "\nWATCH OS DBMS / OS Viva Queries\n"
                 "1) Recent sessions and workloads (JOIN, GROUP BY, ORDER BY)\n"
-                "2) Compare CPU scheduling results across runs\n"
+                "2) CPU scheduling result sets grouped by run ID\n"
                 "3) Deadlock and Banker's safe-state results\n"
-                "4) Virtual memory and disk I/O performance\n"
-                "5) Security and permission audit events\n"
+                "4) Simulation events and process state transitions\n"
+                "5) Access policies and report exports\n"
                 "6) Custom SELECT / safely update or delete a test session\n"
                 "0) Exit"
             )

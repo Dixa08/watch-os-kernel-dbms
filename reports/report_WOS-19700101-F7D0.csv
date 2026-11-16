@@ -1,0 +1,41 @@
+# Session ID: WOS-19700101-F7D0
+# Run ID: RUN-000001
+# Generated At: 1970-01-01 00:01:07 UTC
+Section,Algorithm,Metric,Value
+CPU,FCFS,AvgWaitingTime,3.33333
+CPU,FCFS,AvgTurnaroundTime,7.66667
+CPU,FCFS,AvgResponseTime,3.33333
+CPU,FCFS,ContextSwitches,2
+CPU,FCFS,CpuUtilization,92.8571
+CPU,SJF,AvgWaitingTime,3.33333
+CPU,SJF,AvgTurnaroundTime,7.66667
+CPU,SJF,AvgResponseTime,3.33333
+CPU,SJF,ContextSwitches,2
+CPU,SJF,CpuUtilization,92.8571
+CPU,SRTF,AvgWaitingTime,3
+CPU,SRTF,AvgTurnaroundTime,7.33333
+CPU,SRTF,AvgResponseTime,2
+CPU,SRTF,ContextSwitches,3
+CPU,SRTF,CpuUtilization,92.8571
+CPU,Priority (Non-Preemptive),AvgWaitingTime,3.33333
+CPU,Priority (Non-Preemptive),AvgTurnaroundTime,7.66667
+CPU,Priority (Non-Preemptive),AvgResponseTime,3.33333
+CPU,Priority (Non-Preemptive),ContextSwitches,2
+CPU,Priority (Non-Preemptive),CpuUtilization,92.8571
+CPU,Priority (Preemptive),AvgWaitingTime,3.33333
+CPU,Priority (Preemptive),AvgTurnaroundTime,7.66667
+CPU,Priority (Preemptive),AvgResponseTime,3.33333
+CPU,Priority (Preemptive),ContextSwitches,2
+CPU,Priority (Preemptive),CpuUtilization,92.8571
+CPU,Round Robin (Q=2),AvgWaitingTime,6
+CPU,Round Robin (Q=2),AvgTurnaroundTime,10.3333
+CPU,Round Robin (Q=2),AvgResponseTime,1
+CPU,Round Robin (Q=2),ContextSwitches,7
+CPU,Round Robin (Q=2),CpuUtilization,92.8571
+Memory,FIFO,PageFaults,17
+Memory,FIFO,FaultRatio,0.377778
+Memory,LRU,PageFaults,12
+Memory,LRU,FaultRatio,0.266667
+Memory,Optimal,PageFaults,11
+Memory,Optimal,FaultRatio,0.244444
+Disk,SSTF,TotalHeadMovement,236

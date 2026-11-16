@@ -44,9 +44,22 @@ void testWorkflow1_CreateSaveRestartResume() {
             process::Process(102, 1, 3, 1),
             process::Process(103, 2, 8, 3)
         };
+        procs[0].setName("foreground worker");
+        procs[0].setDescription("Handles interactive requests");
         sess.setProcesses(procs);
         repo.createSession(sess);
         repo.saveWorkload(sess, true);
+
+        reporting::CompleteReportData reportData;
+        reportData.sessionId = sessionId;
+        reportData.sessionDescription = sess.getDescription();
+        reportData.processes = procs;
+        const std::string csvPath = "reports/test_workload_export.csv";
+        const std::string csv = reporting::ReportGenerator::generateCsvReport(reportData);
+        assert(reporting::ReportGenerator::exportToFile(csvPath, csv));
+        assert(csv.find("Input,Process 101,ProcessName,foreground worker") != std::string::npos);
+        assert(csv.find("Input,Process 101,ProcessDescription,Handles interactive requests") != std::string::npos);
+        std::remove(csvPath.c_str());
     } // Connection closed, simulating application shutdown
 
     // "Restart" - new connection instance
@@ -63,6 +76,8 @@ void testWorkflow1_CreateSaveRestartResume() {
         assert(resumedSess.getStatus() == core::SessionStatus::FINALIZED);
         assert(resumedSess.getProcesses().size() == 3);
         assert(resumedSess.getProcesses()[0].getPid() == 101);
+        assert(resumedSess.getProcesses()[0].getName() == "foreground worker");
+        assert(resumedSess.getProcesses()[0].getDescription() == "Handles interactive requests");
         assert(resumedSess.getProcesses()[1].getPid() == 102);
         assert(resumedSess.getProcesses()[2].getPid() == 103);
     }
@@ -91,7 +106,6 @@ void testWorkflow2_RunSchedulingSaveHistory() {
     sessionRepo.saveWorkload(sess, true);
 
     std::string runId = "RUN-E2E-0002";
-    runRepo.createRun(runId, sessId, "CPU_SCHEDULING", "FCFS");
 
     scheduler::FcfsScheduler fcfs;
     auto agg = fcfs.schedule(sess.getProcesses(), sess.getSettings());
@@ -108,14 +122,6 @@ void testWorkflow2_RunSchedulingSaveHistory() {
         rec.responseTime = pr.responseTime;
         runRepo.recordSchedulingResult(rec);
     }
-    runRepo.updateRunStatus(runId, "COMPLETED");
-
-    // View history
-    auto runs = runRepo.getRunsForSession(sessId);
-    assert(runs.size() == 1);
-    assert(runs[0].runId == runId);
-    assert(runs[0].status == "COMPLETED");
-
     auto results = runRepo.getSchedulingResultsForRun(runId);
     assert(results.size() == 2);
     assert(results[0].pid == 1 && results[0].completionTime == 4);
@@ -296,13 +302,29 @@ void testWorkflow9_GenerateReportCompareStoredResults() {
     rd.sessionId = "WOS-REPORT-TEST";
     rd.runId = "RUN-REPORT-TEST";
     rd.generatedAt = "2026-10-16T12:00:00Z";
+    rd.sessionDescription = "Report, with \"quoted\" detail";
     rd.processes = {process::Process(1, 0, 5, 1)};
+    rd.processes[0].setName("report worker");
+    rd.processes[0].setDescription("Exports report data");
+    rd.processes[0].getMemoryConfig().isConfigured = true;
+    rd.processes[0].getMemoryConfig().demandUnits = 64;
+    rd.processes[0].getMemoryConfig().pageReferences = {2, 4, 2};
+    rd.processes[0].addIoRequest({3, 5, "DISK,0"});
+    rd.processes[0].addResourceClaim({"Printer", 2, 1});
+    rd.processes[0].addDiskRequest({42, "WRITE", 8192});
+    rd.processes[0].addSyncRequirement({"mutex-A", 1, 2});
+    rd.processes[0].getAccessConfig().isConfigured = true;
+    rd.processes[0].getAccessConfig().userOrRole = "analyst";
+    rd.processes[0].getAccessConfig().resourceName = "report file";
+    rd.processes[0].getAccessConfig().requestedOperation = "WRITE";
+    rd.settings.defaultTimeQuantum = 7;
+    rd.memoryResults = {memory::PageReplacementSimulator::simulate(
+        memory::PageReplacementPolicy::FIFO, {2, 4, 2}, 2)};
+    rd.auditLogs = {"audit, with \"quoted\" detail"};
 
     // Create parent session and simulation run to fulfill foreign key constraints
     session::Session sess(rd.sessionId, "Report Test Session");
     sessionRepo.createSession(sess);
-    runRepo.createRun(rd.runId, rd.sessionId, "CPU_SCHEDULING", "FCFS report run");
-
     scheduler::FcfsScheduler fcfs;
     rd.schedulingMetrics = {fcfs.schedule(rd.processes, core::SystemSettings{})};
 
@@ -312,10 +334,34 @@ void testWorkflow9_GenerateReportCompareStoredResults() {
     assert(md.find("WOS-REPORT-TEST") != std::string::npos);
     assert(md.find("FCFS") != std::string::npos);
     assert(csv.find("WOS-REPORT-TEST") != std::string::npos);
+    assert(csv.find("Session,Metadata,Description,\"Report, with \"\"quoted\"\" detail\"") != std::string::npos);
+    assert(csv.find("Input,Process 1,MemoryDemandUnits,64") != std::string::npos);
+    assert(csv.find("Input,Process 1,ProcessName,report worker") != std::string::npos);
+    assert(csv.find("Input,Process 1,ProcessDescription,Exports report data") != std::string::npos);
+    assert(csv.find("Input,Process 1,PageReferences,2;4;2") != std::string::npos);
+    assert(csv.find("Input,Process 1,IoRequest[1].Device,\"DISK,0\"") != std::string::npos);
+    assert(csv.find("Input,Process 1,ResourceClaim[1].MaxClaim,2") != std::string::npos);
+    assert(csv.find("Input,Process 1,DiskRequest[1].DataVolumeBytes,8192") != std::string::npos);
+    assert(csv.find("Input,Process 1,SyncRequirement[1].PrimitiveName,mutex-A") != std::string::npos);
+    assert(csv.find("Input,Process 1,AccessRequestedOperation,WRITE") != std::string::npos);
+    assert(csv.find("Configuration,System,DefaultTimeQuantum,7") != std::string::npos);
+    assert(csv.find("Memory,FIFO,PageFaults,3") != std::string::npos);
+    assert(csv.find("Audit,Log,Entry[1],\"audit, with \"\"quoted\"\" detail\"") != std::string::npos);
+
+    const std::string csvTestFile = "reports/test_report_export.csv";
+    assert(reporting::ReportGenerator::exportToFile(csvTestFile, csv));
+    std::ifstream csvFile(csvTestFile);
+    assert(csvFile.good());
+    std::string exportedCsv((std::istreambuf_iterator<char>(csvFile)), std::istreambuf_iterator<char>());
+    assert(exportedCsv.find("Session,Metadata,Description") != std::string::npos);
+    csvFile.close();
+    std::remove(csvTestFile.c_str());
 
     runRepo.saveReportRecord("RPT-001", rd.sessionId, rd.runId, "MARKDOWN", "reports/test.md");
-    auto runs = runRepo.getRunsForSession(rd.sessionId);
-    assert(!runs.empty());
+    auto reports = db.prepare("SELECT COUNT(*) FROM reports WHERE session_id = ?;");
+    reports.bindText(1, rd.sessionId);
+    assert(reports.step());
+    assert(reports.getInt(0) == 1);
 
     std::cout << "  -> Workflow 9 PASSED.\n";
 }

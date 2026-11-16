@@ -1,0 +1,3 @@
+session_id,session_description,config_version,process_id,process_name,process_description,arrival_time,cpu_burst,priority,memory_demand
+WOS-20261116-091725-D459,the dbms fil,1,102,2hfs,the os pbl,3,2,2,
+WOS-20261116-091725-D459,the dbms fil,1,103,he dbms pbl,the dbms pbl,3,5,62,

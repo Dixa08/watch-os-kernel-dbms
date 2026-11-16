@@ -49,5 +49,11 @@ In addition to typing numbers `01` through `18`, the command prompt accepts:
 - `show lifecycle`: Displays process lifecycle transition history.
 - `deadlock analyze`: Renders RAG and runs Banker's algorithm safe-state analysis.
 - `compare runs`: Lists and compares simulation runs from SQLite.
-- `report generate`: Generates Markdown (`reports/report_<session>.md`) and CSV (`reports/report_<session>.csv`) reports.
+- `report generate`: Shows each format choice on its own line; enter `1` for Markdown, `2` for CSV, or `3` for both (press Enter for both). The final result lists the export status and each file path on separate lines.
 - `back` / `quit` / `exit`: Returns to Main Menu.
+
+Saving a workload emits `reports/workload_<session>.csv` over the Wokwi serial
+bridge with the session description and each process's ID, name, description,
+and scheduling parameters. The bridge saves the CSV and upserts the session and
+process rows in SQLite. The final CSV report also includes system settings,
+subsystem inputs, and analysis results.

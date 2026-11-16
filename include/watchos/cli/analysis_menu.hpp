@@ -30,7 +30,7 @@ private:
     void executeCommand(const std::string& cmd);
 
     void opt01_findBestScheduler();
-    void opt02_runAllSchedulers();
+    void opt02_runAllSchedulers(bool showOutput = true);
     void opt03_displayGanttCharts();
     void opt04_showProcessLifecycle();
     void opt05_analyzeContextSwitching();

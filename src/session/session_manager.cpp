@@ -23,7 +23,6 @@ std::shared_ptr<Session> SessionManager::createNewSession(const std::string& des
 
     auto session = std::make_shared<Session>(sessionId, description);
     repository_.createSession(*session);
-    repository_.logEvent(sessionId, "INFO", "SessionManager", "New session created: " + sessionId);
 
     activeSession_ = session;
     return activeSession_;
@@ -36,7 +35,6 @@ std::shared_ptr<Session> SessionManager::resumeSession(const std::string& sessio
     }
 
     activeSession_ = session;
-    repository_.logEvent(sessionId, "INFO", "SessionManager", "Session resumed: " + sessionId);
     return activeSession_;
 }
 
@@ -57,12 +55,6 @@ bool SessionManager::saveActiveSession(bool finalize, std::string* outError) {
 
     try {
         repository_.saveWorkload(*activeSession_, finalize);
-        repository_.logEvent(
-            activeSession_->getSessionId(),
-            "INFO",
-            "SessionManager",
-            finalize ? "Session configuration finalized." : "Session configuration draft saved."
-        );
         return true;
     } catch (const std::exception& ex) {
         if (outError) *outError = ex.what();
@@ -72,7 +64,6 @@ bool SessionManager::saveActiveSession(bool finalize, std::string* outError) {
 
 void SessionManager::closeActiveSession() {
     if (activeSession_) {
-        repository_.logEvent(activeSession_->getSessionId(), "INFO", "SessionManager", "Active session closed.");
         activeSession_.reset();
     }
 }

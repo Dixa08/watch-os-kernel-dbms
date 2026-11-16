@@ -18,6 +18,12 @@ public:
     core::ProcessId getPid() const { return pid_; }
     void setPid(core::ProcessId pid) { pid_ = pid; }
 
+    const std::string& getName() const { return name_; }
+    void setName(const std::string& name) { name_ = name; }
+
+    const std::string& getDescription() const { return description_; }
+    void setDescription(const std::string& description) { description_ = description; }
+
     core::TimeUnits getArrivalTime() const { return arrivalTime_; }
     void setArrivalTime(core::TimeUnits at) { arrivalTime_ = at; }
 
@@ -61,6 +67,8 @@ public:
 
 private:
     core::ProcessId pid_ = 0;
+    std::string name_;
+    std::string description_;
     core::TimeUnits arrivalTime_ = 0;
     core::TimeUnits cpuBurst_ = 1;
     core::Priority priority_ = 1; // Lower number = higher priority

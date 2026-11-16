@@ -42,7 +42,6 @@ int main() {
         sessMgr.saveActiveSession(true);
 
         std::string runId = watchos::core::IdGenerator::generateRunId();
-        runRepo.createRun(runId, session->getSessionId(), "FULL_KERNEL_ANALYSIS", "All subsystems integrated");
 
         // 2. CPU Scheduling
         watchos::core::SystemSettings settings;
@@ -113,13 +112,7 @@ int main() {
         verifyStream.close();
         std::remove(testReportFile.c_str());
 
-        runRepo.updateRunStatus(runId, "COMPLETED");
-
         // Verify records in database
-        auto runs = runRepo.getRunsForSession(session->getSessionId());
-        assert(runs.size() == 1);
-        assert(runs[0].status == "COMPLETED");
-
         auto savedSched = runRepo.getSchedulingResultsForRun(runId);
         assert(!savedSched.empty());
 

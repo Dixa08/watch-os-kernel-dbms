@@ -10,9 +10,13 @@ Process::Process(core::ProcessId pid, core::TimeUnits arrivalTime, core::TimeUni
 std::string Process::getSummaryString() const {
     std::ostringstream oss;
     oss << "PID: " << pid_
+        << " | Name: " << name_
         << " | AT: " << arrivalTime_
         << " | BT: " << cpuBurst_
         << " | Pri: " << priority_;
+    if (!description_.empty()) {
+        oss << " | Description: " << description_;
+    }
     
     if (memoryConfig_.isConfigured) {
         oss << " | Mem: " << memoryConfig_.demandUnits << " units";

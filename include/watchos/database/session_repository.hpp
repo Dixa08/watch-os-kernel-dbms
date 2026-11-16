@@ -19,7 +19,7 @@ public:
     // Save or update workload configuration under active version in a transaction
     void saveWorkload(const session::Session& session, bool finalize);
 
-    // Load full session with processes and subsystem configs
+    // Load a session and its configured processes
     bool loadSession(const std::string& sessionId, session::Session& outSession);
 
     // List all sessions with summary metadata
@@ -31,11 +31,8 @@ public:
     // Update status
     void updateSessionStatus(const std::string& sessionId, core::SessionStatus status);
 
-    // Delete session (cascade deletes configs, processes, runs)
+    // Delete session and its dependent session records
     bool deleteSession(const std::string& sessionId);
-
-    // Log operational message
-    void logEvent(const std::string& sessionId, const std::string& level, const std::string& source, const std::string& message);
 
 private:
     DbConnection& db_;

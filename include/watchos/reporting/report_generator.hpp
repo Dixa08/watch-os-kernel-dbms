@@ -15,8 +15,10 @@ namespace reporting {
 
 struct CompleteReportData {
     std::string sessionId;
+    std::string sessionDescription;
     std::string runId;
     std::string generatedAt;
+    core::SystemSettings settings;
     std::vector<process::Process> processes;
     std::vector<scheduler::AggregateMetrics> schedulingMetrics;
     std::vector<memory::PageSimulationResult> memoryResults;

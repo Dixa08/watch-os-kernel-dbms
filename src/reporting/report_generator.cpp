@@ -1,32 +1,105 @@
 #include "watchos/reporting/report_generator.hpp"
 #include "watchos/scheduler/gantt_chart.hpp"
+#include <cctype>
 #include <fstream>
 #include <sstream>
 #include <iomanip>
 
-#ifdef ARDUINO
+#if defined(ARDUINO) || defined(ESP32)
 #include <Arduino.h>
 #endif
 
 namespace watchos {
 namespace reporting {
 
-#ifdef ARDUINO
 namespace {
 
-void exportReportToSerial(const std::string& path, const std::string& content) {
-    Serial.print("<<<FILE_EXPORT_START:");
-    Serial.print(path.c_str());
-    Serial.println(">>>");
-    Serial.print(content.c_str());
-    if (content.empty() || content.back() != '\n') {
-        Serial.println();
+std::string escapeCsvField(const std::string& value) {
+    if (value.find_first_of(",\"\r\n") == std::string::npos) {
+        return value;
     }
-    Serial.println("<<<FILE_EXPORT_END>>>");
+
+    std::string escaped = "\"";
+    for (char character : value) {
+        if (character == '"') {
+            escaped += "\"\"";
+        } else {
+            escaped += character;
+        }
+    }
+    escaped += '"';
+    return escaped;
+}
+
+void writeCsvRow(
+    std::ostream& output,
+    const std::string& section,
+    const std::string& algorithm,
+    const std::string& metric,
+    const std::string& value
+) {
+    output << escapeCsvField(section) << ','
+           << escapeCsvField(algorithm) << ','
+           << escapeCsvField(metric) << ','
+           << escapeCsvField(value) << '\n';
+}
+
+template <typename Value>
+void writeCsvMetric(
+    std::ostream& output,
+    const std::string& section,
+    const std::string& algorithm,
+    const std::string& metric,
+    const Value& value
+) {
+    std::ostringstream valueStream;
+    valueStream << value;
+    writeCsvRow(output, section, algorithm, metric, valueStream.str());
+}
+
+template <typename Value>
+std::string joinValues(const std::vector<Value>& values) {
+    std::ostringstream joined;
+    for (size_t index = 0; index < values.size(); ++index) {
+        if (index != 0) {
+            joined << ';';
+        }
+        joined << values[index];
+    }
+    return joined.str();
+}
+
+std::string stripLineIndentation(const std::string& content) {
+    std::string cleaned;
+    cleaned.reserve(content.size());
+    size_t lineStart = 0;
+    while (lineStart < content.size()) {
+        const size_t lineEnd = content.find('\n', lineStart);
+        const size_t end = lineEnd == std::string::npos ? content.size() : lineEnd;
+        size_t first = lineStart;
+        while (first < end) {
+            const unsigned char character = static_cast<unsigned char>(content[first]);
+            if (std::isspace(character) != 0) {
+                ++first;
+            } else if (first + 1 < end
+                && character == 0xC2
+                && static_cast<unsigned char>(content[first + 1]) == 0xA0) {
+                first += 2;
+            } else {
+                break;
+            }
+        }
+        cleaned.append(content, first, end - first);
+        if (lineEnd == std::string::npos) {
+            break;
+        }
+        cleaned.push_back('\n');
+        lineStart = lineEnd + 1;
+    }
+    return cleaned;
 }
 
 } // namespace
-#endif
 
 std::string ReportGenerator::generateMarkdownReport(const CompleteReportData& data) {
     std::ostringstream oss;
@@ -104,11 +177,7 @@ std::string ReportGenerator::generateMarkdownReport(const CompleteReportData& da
     oss << "- Integer simulated clock time units represent idealized execution cycles.\n";
     oss << "- Access control rules and memory protection boundaries are educational and separate from host OS security.\n";
 
-    const std::string content = oss.str();
-#ifdef ARDUINO
-    exportReportToSerial("reports/report_" + data.sessionId + ".md", content);
-#endif
-    return content;
+    return stripLineIndentation(oss.str());
 }
 
 std::string ReportGenerator::generateCsvReport(const CompleteReportData& data) {
@@ -117,30 +186,161 @@ std::string ReportGenerator::generateCsvReport(const CompleteReportData& data) {
     oss << "# Run ID: " << data.runId << "\n";
     oss << "# Generated At: " << data.generatedAt << "\n";
     oss << "Section,Algorithm,Metric,Value\n";
+
+    writeCsvRow(oss, "Session", "Metadata", "Description", data.sessionDescription);
+    writeCsvMetric(oss, "Session", "Metadata", "ProcessCount", data.processes.size());
+    writeCsvMetric(oss, "Configuration", "System", "DefaultTimeQuantum", data.settings.defaultTimeQuantum);
+    writeCsvMetric(oss, "Configuration", "System", "DefaultMemoryFrames", data.settings.defaultMemoryFrames);
+    writeCsvMetric(oss, "Configuration", "System", "AgingInterval", data.settings.agingInterval);
+    writeCsvMetric(oss, "Configuration", "System", "AgingIncrement", data.settings.agingIncrement);
+    writeCsvMetric(oss, "Configuration", "System", "ContextSwitchOverhead", data.settings.contextSwitchOverhead);
+    writeCsvMetric(oss, "Configuration", "System", "EnableAnsiColor", data.settings.enableAnsiColor ? "true" : "false");
+    writeCsvRow(oss, "Configuration", "System", "ReportFormat", data.settings.reportFormat);
+
+    for (const auto& process : data.processes) {
+        const std::string processName = "Process " + std::to_string(process.getPid());
+        writeCsvRow(oss, "Input", processName, "ProcessName", process.getName());
+        writeCsvRow(oss, "Input", processName, "ProcessDescription", process.getDescription());
+        writeCsvMetric(oss, "Input", processName, "ArrivalTime", process.getArrivalTime());
+        writeCsvMetric(oss, "Input", processName, "CpuBurst", process.getCpuBurst());
+        writeCsvMetric(oss, "Input", processName, "Priority", process.getPriority());
+
+        const auto& memory = process.getMemoryConfig();
+        writeCsvMetric(oss, "Input", processName, "MemoryConfigured", memory.isConfigured ? "true" : "false");
+        writeCsvMetric(oss, "Input", processName, "MemoryDemandUnits", memory.demandUnits);
+        writeCsvRow(oss, "Input", processName, "PageReferences", joinValues(memory.pageReferences));
+
+        for (size_t index = 0; index < process.getIoRequests().size(); ++index) {
+            const auto& request = process.getIoRequests()[index];
+            const std::string prefix = "IoRequest[" + std::to_string(index + 1) + "].";
+            writeCsvMetric(oss, "Input", processName, prefix + "RequestTime", request.requestTime);
+            writeCsvMetric(oss, "Input", processName, prefix + "Duration", request.duration);
+            writeCsvRow(oss, "Input", processName, prefix + "Device", request.device);
+        }
+
+        for (size_t index = 0; index < process.getResourceClaims().size(); ++index) {
+            const auto& claim = process.getResourceClaims()[index];
+            const std::string prefix = "ResourceClaim[" + std::to_string(index + 1) + "].";
+            writeCsvRow(oss, "Input", processName, prefix + "ResourceType", claim.resourceType);
+            writeCsvMetric(oss, "Input", processName, prefix + "MaxClaim", claim.maxClaim);
+            writeCsvMetric(oss, "Input", processName, prefix + "InitialAllocation", claim.initialAllocation);
+        }
+
+        for (size_t index = 0; index < process.getDiskRequests().size(); ++index) {
+            const auto& request = process.getDiskRequests()[index];
+            const std::string prefix = "DiskRequest[" + std::to_string(index + 1) + "].";
+            writeCsvMetric(oss, "Input", processName, prefix + "BlockOrCylinder", request.blockOrCylinder);
+            writeCsvRow(oss, "Input", processName, prefix + "OperationType", request.operationType);
+            writeCsvMetric(oss, "Input", processName, prefix + "DataVolumeBytes", request.dataVolumeBytes);
+        }
+
+        for (size_t index = 0; index < process.getSyncRequirements().size(); ++index) {
+            const auto& requirement = process.getSyncRequirements()[index];
+            const std::string prefix = "SyncRequirement[" + std::to_string(index + 1) + "].";
+            writeCsvRow(oss, "Input", processName, prefix + "PrimitiveName", requirement.primitiveName);
+            writeCsvMetric(oss, "Input", processName, prefix + "StartTime", requirement.csStartTime);
+            writeCsvMetric(oss, "Input", processName, prefix + "Duration", requirement.csDuration);
+        }
+
+        const auto& access = process.getAccessConfig();
+        writeCsvMetric(oss, "Input", processName, "AccessConfigured", access.isConfigured ? "true" : "false");
+        writeCsvRow(oss, "Input", processName, "AccessUserOrRole", access.userOrRole);
+        writeCsvRow(oss, "Input", processName, "AccessResourceName", access.resourceName);
+        writeCsvRow(oss, "Input", processName, "AccessRequestedOperation", access.requestedOperation);
+    }
+
     for (const auto& m : data.schedulingMetrics) {
-        oss << "CPU," << m.algorithmName << ",AvgWaitingTime," << m.avgWaitingTime << "\n";
-        oss << "CPU," << m.algorithmName << ",AvgTurnaroundTime," << m.avgTurnaroundTime << "\n";
-        oss << "CPU," << m.algorithmName << ",AvgResponseTime," << m.avgResponseTime << "\n";
-        oss << "CPU," << m.algorithmName << ",ContextSwitches," << m.totalContextSwitches << "\n";
-        oss << "CPU," << m.algorithmName << ",CpuUtilization," << m.cpuUtilization << "\n";
+        writeCsvMetric(oss, "CPU", m.algorithmName, "AvgWaitingTime", m.avgWaitingTime);
+        writeCsvMetric(oss, "CPU", m.algorithmName, "AvgTurnaroundTime", m.avgTurnaroundTime);
+        writeCsvMetric(oss, "CPU", m.algorithmName, "AvgResponseTime", m.avgResponseTime);
+        writeCsvMetric(oss, "CPU", m.algorithmName, "Throughput", m.throughput);
+        writeCsvMetric(oss, "CPU", m.algorithmName, "ContextSwitches", m.totalContextSwitches);
+        writeCsvMetric(oss, "CPU", m.algorithmName, "CpuUtilization", m.cpuUtilization);
+        writeCsvMetric(oss, "CPU", m.algorithmName, "TotalElapsedTime", m.totalElapsedTime);
+        writeCsvMetric(oss, "CPU", m.algorithmName, "TotalBusyTime", m.totalBusyTime);
+        writeCsvMetric(oss, "CPU", m.algorithmName, "TotalIdleTime", m.totalIdleTime);
+        writeCsvMetric(oss, "CPU", m.algorithmName, "StarvationBreaches", m.starvationBreaches);
+        writeCsvMetric(oss, "CPU", m.algorithmName, "MaxWaitingTime", m.maxWaitingTime);
+
+        for (const auto& result : m.processResults) {
+            const std::string processName = "Process " + std::to_string(result.pid);
+            writeCsvMetric(oss, "CPU Process Result", m.algorithmName, processName + ".FirstStartTime", result.firstStartTime);
+            writeCsvMetric(oss, "CPU Process Result", m.algorithmName, processName + ".CompletionTime", result.completionTime);
+            writeCsvMetric(oss, "CPU Process Result", m.algorithmName, processName + ".TurnaroundTime", result.turnaroundTime);
+            writeCsvMetric(oss, "CPU Process Result", m.algorithmName, processName + ".WaitingTime", result.waitingTime);
+            writeCsvMetric(oss, "CPU Process Result", m.algorithmName, processName + ".ResponseTime", result.responseTime);
+            writeCsvMetric(oss, "CPU Process Result", m.algorithmName, processName + ".ContextSwitches", result.contextSwitches);
+        }
+
+        for (size_t index = 0; index < m.ganttSegments.size(); ++index) {
+            const auto& segment = m.ganttSegments[index];
+            const std::string prefix = "Segment[" + std::to_string(index + 1) + "].";
+            writeCsvMetric(oss, "CPU Gantt", m.algorithmName, prefix + "StartTime", segment.startTime);
+            writeCsvMetric(oss, "CPU Gantt", m.algorithmName, prefix + "EndTime", segment.endTime);
+            writeCsvMetric(oss, "CPU Gantt", m.algorithmName, prefix + "ProcessId", segment.pid);
+            writeCsvMetric(oss, "CPU Gantt", m.algorithmName, prefix + "IsIdle", segment.isIdle ? "true" : "false");
+            writeCsvMetric(oss, "CPU Gantt", m.algorithmName, prefix + "IsContextSwitch", segment.isContextSwitch ? "true" : "false");
+        }
     }
     for (const auto& mem : data.memoryResults) {
-        oss << "Memory," << mem.algorithmName << ",PageFaults," << mem.pageFaults << "\n";
-        oss << "Memory," << mem.algorithmName << ",FaultRatio," << mem.faultRatio << "\n";
+        writeCsvMetric(oss, "Memory", mem.algorithmName, "FrameCount", mem.frameCount);
+        writeCsvMetric(oss, "Memory", mem.algorithmName, "TotalReferences", mem.totalReferences);
+        writeCsvMetric(oss, "Memory", mem.algorithmName, "PageFaults", mem.pageFaults);
+        writeCsvMetric(oss, "Memory", mem.algorithmName, "PageHits", mem.pageHits);
+        writeCsvMetric(oss, "Memory", mem.algorithmName, "Replacements", mem.replacements);
+        writeCsvMetric(oss, "Memory", mem.algorithmName, "FaultRatio", mem.faultRatio);
+        writeCsvMetric(oss, "Memory", mem.algorithmName, "ThrashingDetected", mem.thrashingDetected ? "true" : "false");
     }
-    oss << "Disk," << data.diskResult.algorithmName << ",TotalHeadMovement," << data.diskResult.totalHeadMovement << "\n";
-    const std::string content = oss.str();
-#ifdef ARDUINO
-    exportReportToSerial("reports/report_" + data.sessionId + ".csv", content);
-#endif
-    return content;
+
+    writeCsvMetric(oss, "Deadlock", "Bankers", "IsSafe", data.bankersResult.isSafe ? "true" : "false");
+    writeCsvRow(oss, "Deadlock", "Bankers", "Explanation", data.bankersResult.explanation);
+    writeCsvRow(oss, "Deadlock", "Bankers", "SafeSequence", joinValues(data.bankersResult.safeSequence));
+    for (size_t index = 0; index < data.bankersResult.resourceNames.size(); ++index) {
+        const std::string resourceName = data.bankersResult.resourceNames[index];
+        writeCsvRow(oss, "Deadlock", "Bankers", "Resource[" + std::to_string(index + 1) + "].Name", resourceName);
+        if (index < data.bankersResult.availableAtStart.size()) {
+            writeCsvMetric(oss, "Deadlock", "Bankers", "Resource[" + std::to_string(index + 1) + "].AvailableAtStart", data.bankersResult.availableAtStart[index]);
+        }
+    }
+    writeCsvMetric(oss, "Deadlock", "Detection", "IsDeadlocked", data.deadlockResult.isDeadlocked ? "true" : "false");
+    writeCsvRow(oss, "Deadlock", "Detection", "DeadlockedProcesses", joinValues(data.deadlockResult.deadlockedProcesses));
+    writeCsvRow(oss, "Deadlock", "Detection", "Report", data.deadlockResult.report);
+
+    writeCsvMetric(oss, "Disk", data.diskResult.algorithmName, "InitialHead", data.diskResult.initialHead);
+    writeCsvMetric(oss, "Disk", data.diskResult.algorithmName, "MinCylinder", data.diskResult.minCylinder);
+    writeCsvMetric(oss, "Disk", data.diskResult.algorithmName, "MaxCylinder", data.diskResult.maxCylinder);
+    writeCsvRow(oss, "Disk", data.diskResult.algorithmName, "ServiceOrder", joinValues(data.diskResult.serviceOrder));
+    writeCsvMetric(oss, "Disk", data.diskResult.algorithmName, "TotalHeadMovement", data.diskResult.totalHeadMovement);
+    writeCsvMetric(oss, "Disk", data.diskResult.algorithmName, "AverageHeadMovement", data.diskResult.averageHeadMovement);
+    writeCsvRow(oss, "Disk", data.diskResult.algorithmName, "Direction", data.diskResult.direction);
+
+    for (size_t index = 0; index < data.auditLogs.size(); ++index) {
+        writeCsvRow(oss, "Audit", "Log", "Entry[" + std::to_string(index + 1) + "]", data.auditLogs[index]);
+    }
+
+    return stripLineIndentation(oss.str());
 }
 
 bool ReportGenerator::exportToFile(const std::string& filePath, const std::string& content) {
+    const std::string cleanedContent = stripLineIndentation(content);
+#if defined(ARDUINO) || defined(ESP32)
+    if (filePath.compare(0, 8, "reports/") != 0
+        || (filePath.size() < 3
+            || (filePath.compare(filePath.size() - 3, 3, ".md") != 0
+                && filePath.compare(filePath.size() - 4, 4, ".csv") != 0))) {
+        return false;
+    }
+
+    Serial.println(("<<<FILE_EXPORT_START:" + filePath + ">>>").c_str());
+    Serial.print(cleanedContent.c_str());
+    Serial.println("<<<FILE_EXPORT_END>>>");
+    return true;
+#else
     std::ofstream out(filePath);
     if (!out.is_open()) return false;
-    out << content;
-    return true;
+    out << cleanedContent;
+    return out.good();
+#endif
 }
 
 } // namespace reporting

@@ -1,0 +1,233 @@
+# Session ID: WOS-20261116-091140-1CB4
+# Run ID: RUN-000001
+# Generated At: 1970-01-01 00:00:48 UTC
+Section,Algorithm,Metric,Value
+Session,Metadata,Description,the os file
+Session,Metadata,ProcessCount,1
+Configuration,System,DefaultTimeQuantum,2
+Configuration,System,DefaultMemoryFrames,16
+Configuration,System,AgingInterval,5
+Configuration,System,AgingIncrement,1
+Configuration,System,ContextSwitchOverhead,0
+Configuration,System,EnableAnsiColor,true
+Configuration,System,ReportFormat,MARKDOWN
+Input,Process 90,ProcessName,process 90
+Input,Process 90,ProcessDescription,the ideal os kernel
+Input,Process 90,ArrivalTime,3
+Input,Process 90,CpuBurst,4
+Input,Process 90,Priority,2
+Input,Process 90,MemoryConfigured,false
+Input,Process 90,MemoryDemandUnits,0
+Input,Process 90,PageReferences,
+Input,Process 90,AccessConfigured,false
+Input,Process 90,AccessUserOrRole,default_user
+Input,Process 90,AccessResourceName,
+Input,Process 90,AccessRequestedOperation,READ
+CPU,FCFS,AvgWaitingTime,0
+CPU,FCFS,AvgTurnaroundTime,4
+CPU,FCFS,AvgResponseTime,0
+CPU,FCFS,Throughput,0.142857
+CPU,FCFS,ContextSwitches,0
+CPU,FCFS,CpuUtilization,57.1429
+CPU,FCFS,TotalElapsedTime,7
+CPU,FCFS,TotalBusyTime,4
+CPU,FCFS,TotalIdleTime,3
+CPU,FCFS,StarvationBreaches,0
+CPU,FCFS,MaxWaitingTime,0
+CPU Process Result,FCFS,Process 90.FirstStartTime,3
+CPU Process Result,FCFS,Process 90.CompletionTime,7
+CPU Process Result,FCFS,Process 90.TurnaroundTime,4
+CPU Process Result,FCFS,Process 90.WaitingTime,0
+CPU Process Result,FCFS,Process 90.ResponseTime,0
+CPU Process Result,FCFS,Process 90.ContextSwitches,1
+CPU Gantt,FCFS,Segment[1].StartTime,0
+CPU Gantt,FCFS,Segment[1].EndTime,3
+CPU Gantt,FCFS,Segment[1].ProcessId,0
+CPU Gantt,FCFS,Segment[1].IsIdle,true
+CPU Gantt,FCFS,Segment[1].IsContextSwitch,false
+CPU Gantt,FCFS,Segment[2].StartTime,3
+CPU Gantt,FCFS,Segment[2].EndTime,7
+CPU Gantt,FCFS,Segment[2].ProcessId,90
+CPU Gantt,FCFS,Segment[2].IsIdle,false
+CPU Gantt,FCFS,Segment[2].IsContextSwitch,false
+CPU,SJF,AvgWaitingTime,0
+CPU,SJF,AvgTurnaroundTime,4
+CPU,SJF,AvgResponseTime,0
+CPU,SJF,Throughput,0.142857
+CPU,SJF,ContextSwitches,0
+CPU,SJF,CpuUtilization,57.1429
+CPU,SJF,TotalElapsedTime,7
+CPU,SJF,TotalBusyTime,4
+CPU,SJF,TotalIdleTime,3
+CPU,SJF,StarvationBreaches,0
+CPU,SJF,MaxWaitingTime,0
+CPU Process Result,SJF,Process 90.FirstStartTime,3
+CPU Process Result,SJF,Process 90.CompletionTime,7
+CPU Process Result,SJF,Process 90.TurnaroundTime,4
+CPU Process Result,SJF,Process 90.WaitingTime,0
+CPU Process Result,SJF,Process 90.ResponseTime,0
+CPU Process Result,SJF,Process 90.ContextSwitches,1
+CPU Gantt,SJF,Segment[1].StartTime,0
+CPU Gantt,SJF,Segment[1].EndTime,3
+CPU Gantt,SJF,Segment[1].ProcessId,0
+CPU Gantt,SJF,Segment[1].IsIdle,true
+CPU Gantt,SJF,Segment[1].IsContextSwitch,false
+CPU Gantt,SJF,Segment[2].StartTime,3
+CPU Gantt,SJF,Segment[2].EndTime,7
+CPU Gantt,SJF,Segment[2].ProcessId,90
+CPU Gantt,SJF,Segment[2].IsIdle,false
+CPU Gantt,SJF,Segment[2].IsContextSwitch,false
+CPU,SRTF,AvgWaitingTime,0
+CPU,SRTF,AvgTurnaroundTime,4
+CPU,SRTF,AvgResponseTime,0
+CPU,SRTF,Throughput,0.142857
+CPU,SRTF,ContextSwitches,0
+CPU,SRTF,CpuUtilization,57.1429
+CPU,SRTF,TotalElapsedTime,7
+CPU,SRTF,TotalBusyTime,4
+CPU,SRTF,TotalIdleTime,3
+CPU,SRTF,StarvationBreaches,0
+CPU,SRTF,MaxWaitingTime,0
+CPU Process Result,SRTF,Process 90.FirstStartTime,3
+CPU Process Result,SRTF,Process 90.CompletionTime,7
+CPU Process Result,SRTF,Process 90.TurnaroundTime,4
+CPU Process Result,SRTF,Process 90.WaitingTime,0
+CPU Process Result,SRTF,Process 90.ResponseTime,0
+CPU Process Result,SRTF,Process 90.ContextSwitches,1
+CPU Gantt,SRTF,Segment[1].StartTime,0
+CPU Gantt,SRTF,Segment[1].EndTime,3
+CPU Gantt,SRTF,Segment[1].ProcessId,0
+CPU Gantt,SRTF,Segment[1].IsIdle,true
+CPU Gantt,SRTF,Segment[1].IsContextSwitch,false
+CPU Gantt,SRTF,Segment[2].StartTime,3
+CPU Gantt,SRTF,Segment[2].EndTime,7
+CPU Gantt,SRTF,Segment[2].ProcessId,90
+CPU Gantt,SRTF,Segment[2].IsIdle,false
+CPU Gantt,SRTF,Segment[2].IsContextSwitch,false
+CPU,Priority (Non-Preemptive),AvgWaitingTime,0
+CPU,Priority (Non-Preemptive),AvgTurnaroundTime,4
+CPU,Priority (Non-Preemptive),AvgResponseTime,0
+CPU,Priority (Non-Preemptive),Throughput,0.142857
+CPU,Priority (Non-Preemptive),ContextSwitches,0
+CPU,Priority (Non-Preemptive),CpuUtilization,57.1429
+CPU,Priority (Non-Preemptive),TotalElapsedTime,7
+CPU,Priority (Non-Preemptive),TotalBusyTime,4
+CPU,Priority (Non-Preemptive),TotalIdleTime,3
+CPU,Priority (Non-Preemptive),StarvationBreaches,0
+CPU,Priority (Non-Preemptive),MaxWaitingTime,0
+CPU Process Result,Priority (Non-Preemptive),Process 90.FirstStartTime,3
+CPU Process Result,Priority (Non-Preemptive),Process 90.CompletionTime,7
+CPU Process Result,Priority (Non-Preemptive),Process 90.TurnaroundTime,4
+CPU Process Result,Priority (Non-Preemptive),Process 90.WaitingTime,0
+CPU Process Result,Priority (Non-Preemptive),Process 90.ResponseTime,0
+CPU Process Result,Priority (Non-Preemptive),Process 90.ContextSwitches,1
+CPU Gantt,Priority (Non-Preemptive),Segment[1].StartTime,0
+CPU Gantt,Priority (Non-Preemptive),Segment[1].EndTime,3
+CPU Gantt,Priority (Non-Preemptive),Segment[1].ProcessId,0
+CPU Gantt,Priority (Non-Preemptive),Segment[1].IsIdle,true
+CPU Gantt,Priority (Non-Preemptive),Segment[1].IsContextSwitch,false
+CPU Gantt,Priority (Non-Preemptive),Segment[2].StartTime,3
+CPU Gantt,Priority (Non-Preemptive),Segment[2].EndTime,7
+CPU Gantt,Priority (Non-Preemptive),Segment[2].ProcessId,90
+CPU Gantt,Priority (Non-Preemptive),Segment[2].IsIdle,false
+CPU Gantt,Priority (Non-Preemptive),Segment[2].IsContextSwitch,false
+CPU,Priority (Preemptive),AvgWaitingTime,0
+CPU,Priority (Preemptive),AvgTurnaroundTime,4
+CPU,Priority (Preemptive),AvgResponseTime,0
+CPU,Priority (Preemptive),Throughput,0.142857
+CPU,Priority (Preemptive),ContextSwitches,0
+CPU,Priority (Preemptive),CpuUtilization,57.1429
+CPU,Priority (Preemptive),TotalElapsedTime,7
+CPU,Priority (Preemptive),TotalBusyTime,4
+CPU,Priority (Preemptive),TotalIdleTime,3
+CPU,Priority (Preemptive),StarvationBreaches,0
+CPU,Priority (Preemptive),MaxWaitingTime,0
+CPU Process Result,Priority (Preemptive),Process 90.FirstStartTime,3
+CPU Process Result,Priority (Preemptive),Process 90.CompletionTime,7
+CPU Process Result,Priority (Preemptive),Process 90.TurnaroundTime,4
+CPU Process Result,Priority (Preemptive),Process 90.WaitingTime,0
+CPU Process Result,Priority (Preemptive),Process 90.ResponseTime,0
+CPU Process Result,Priority (Preemptive),Process 90.ContextSwitches,1
+CPU Gantt,Priority (Preemptive),Segment[1].StartTime,0
+CPU Gantt,Priority (Preemptive),Segment[1].EndTime,3
+CPU Gantt,Priority (Preemptive),Segment[1].ProcessId,0
+CPU Gantt,Priority (Preemptive),Segment[1].IsIdle,true
+CPU Gantt,Priority (Preemptive),Segment[1].IsContextSwitch,false
+CPU Gantt,Priority (Preemptive),Segment[2].StartTime,3
+CPU Gantt,Priority (Preemptive),Segment[2].EndTime,7
+CPU Gantt,Priority (Preemptive),Segment[2].ProcessId,90
+CPU Gantt,Priority (Preemptive),Segment[2].IsIdle,false
+CPU Gantt,Priority (Preemptive),Segment[2].IsContextSwitch,false
+CPU,Round Robin (Q=2),AvgWaitingTime,0
+CPU,Round Robin (Q=2),AvgTurnaroundTime,4
+CPU,Round Robin (Q=2),AvgResponseTime,0
+CPU,Round Robin (Q=2),Throughput,0.142857
+CPU,Round Robin (Q=2),ContextSwitches,0
+CPU,Round Robin (Q=2),CpuUtilization,57.1429
+CPU,Round Robin (Q=2),TotalElapsedTime,7
+CPU,Round Robin (Q=2),TotalBusyTime,4
+CPU,Round Robin (Q=2),TotalIdleTime,3
+CPU,Round Robin (Q=2),StarvationBreaches,0
+CPU,Round Robin (Q=2),MaxWaitingTime,0
+CPU Process Result,Round Robin (Q=2),Process 90.FirstStartTime,3
+CPU Process Result,Round Robin (Q=2),Process 90.CompletionTime,7
+CPU Process Result,Round Robin (Q=2),Process 90.TurnaroundTime,4
+CPU Process Result,Round Robin (Q=2),Process 90.WaitingTime,0
+CPU Process Result,Round Robin (Q=2),Process 90.ResponseTime,0
+CPU Process Result,Round Robin (Q=2),Process 90.ContextSwitches,2
+CPU Gantt,Round Robin (Q=2),Segment[1].StartTime,0
+CPU Gantt,Round Robin (Q=2),Segment[1].EndTime,3
+CPU Gantt,Round Robin (Q=2),Segment[1].ProcessId,0
+CPU Gantt,Round Robin (Q=2),Segment[1].IsIdle,true
+CPU Gantt,Round Robin (Q=2),Segment[1].IsContextSwitch,false
+CPU Gantt,Round Robin (Q=2),Segment[2].StartTime,3
+CPU Gantt,Round Robin (Q=2),Segment[2].EndTime,5
+CPU Gantt,Round Robin (Q=2),Segment[2].ProcessId,90
+CPU Gantt,Round Robin (Q=2),Segment[2].IsIdle,false
+CPU Gantt,Round Robin (Q=2),Segment[2].IsContextSwitch,false
+CPU Gantt,Round Robin (Q=2),Segment[3].StartTime,5
+CPU Gantt,Round Robin (Q=2),Segment[3].EndTime,7
+CPU Gantt,Round Robin (Q=2),Segment[3].ProcessId,90
+CPU Gantt,Round Robin (Q=2),Segment[3].IsIdle,false
+CPU Gantt,Round Robin (Q=2),Segment[3].IsContextSwitch,false
+Memory,FIFO,FrameCount,3
+Memory,FIFO,TotalReferences,15
+Memory,FIFO,PageFaults,2
+Memory,FIFO,PageHits,13
+Memory,FIFO,Replacements,0
+Memory,FIFO,FaultRatio,0.133333
+Memory,FIFO,ThrashingDetected,false
+Memory,LRU,FrameCount,3
+Memory,LRU,TotalReferences,15
+Memory,LRU,PageFaults,2
+Memory,LRU,PageHits,13
+Memory,LRU,Replacements,0
+Memory,LRU,FaultRatio,0.133333
+Memory,LRU,ThrashingDetected,false
+Memory,Optimal,FrameCount,3
+Memory,Optimal,TotalReferences,15
+Memory,Optimal,PageFaults,2
+Memory,Optimal,PageHits,13
+Memory,Optimal,Replacements,0
+Memory,Optimal,FaultRatio,0.133333
+Memory,Optimal,ThrashingDetected,false
+Deadlock,Bankers,IsSafe,true
+Deadlock,Bankers,Explanation,Safe state verified. A valid safe execution sequence exists: <P90>
+Deadlock,Bankers,SafeSequence,90
+Deadlock,Bankers,Resource[1].Name,R1
+Deadlock,Bankers,Resource[1].AvailableAtStart,9
+Deadlock,Bankers,Resource[2].Name,R2
+Deadlock,Bankers,Resource[2].AvailableAtStart,5
+Deadlock,Bankers,Resource[3].Name,R3
+Deadlock,Bankers,Resource[3].AvailableAtStart,6
+Deadlock,Detection,IsDeadlocked,false
+Deadlock,Detection,DeadlockedProcesses,
+Deadlock,Detection,Report,"[NO DEADLOCK] System is currently free of deadlocks. All processes can acquire needed resources.
+"
+Disk,SSTF,InitialHead,53
+Disk,SSTF,MinCylinder,0
+Disk,SSTF,MaxCylinder,199
+Disk,SSTF,ServiceOrder,65;67;37;14;98;122;124;183
+Disk,SSTF,TotalHeadMovement,236
+Disk,SSTF,AverageHeadMovement,29.5
+Disk,SSTF,Direction,UP

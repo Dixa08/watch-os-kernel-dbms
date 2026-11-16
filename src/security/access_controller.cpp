@@ -1,4 +1,5 @@
 #include "watchos/security/access_controller.hpp"
+#include "watchos/security/access_policy.hpp"
 #include <sstream>
 #include <iomanip>
 
@@ -18,7 +19,7 @@ AccessController::AccessController() {
 }
 
 void AccessController::addPolicy(const std::string& roleOrUser, const std::string& resource, const std::string& operation, bool allow) {
-    std::string key = roleOrUser + ":" + resource + ":" + operation;
+    std::string key = roleOrUser + ":" + resource + ":" + normalizeAccessOperation(operation);
     acl_[key] = allow;
 }
 
@@ -27,6 +28,7 @@ void AccessController::assignRole(core::ProcessId pid, const std::string& role) 
 }
 
 AccessDecision AccessController::checkAccess(core::ProcessId pid, const std::string& resource, const std::string& operation, core::TimeUnits time) {
+    const std::string normalizedOperation = normalizeAccessOperation(operation);
     std::string role = "user";
     auto rIt = processRoles_.find(pid);
     if (rIt != processRoles_.end()) {
@@ -36,11 +38,11 @@ AccessDecision AccessController::checkAccess(core::ProcessId pid, const std::str
     AccessDecision dec;
     dec.actor = "PID " + std::to_string(pid) + " (" + role + ")";
     dec.resource = resource;
-    dec.operation = operation;
+    dec.operation = normalizedOperation;
 
     // Check exact rule, then wildcard rules
-    std::string exactKey = role + ":" + resource + ":" + operation;
-    std::string wildcardResKey = role + ":*:" + operation;
+    std::string exactKey = role + ":" + resource + ":" + normalizedOperation;
+    std::string wildcardResKey = role + ":*:" + normalizedOperation;
     std::string wildcardOpKey = role + ":" + resource + ":*";
     std::string superKey = role + ":*:*";
 
@@ -67,7 +69,7 @@ AccessDecision AccessController::checkAccess(core::ProcessId pid, const std::str
         dec.reason = "No matching access rule found. Access denied by default policy.";
     }
 
-    auditLog_.push_back({time, pid, role, resource, operation, dec.granted, dec.reason});
+    auditLog_.push_back({time, pid, role, resource, normalizedOperation, dec.granted, dec.reason});
     return dec;
 }
 

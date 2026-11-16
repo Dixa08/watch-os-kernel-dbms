@@ -11,37 +11,21 @@
 
 using namespace watchos;
 
-void testAll24TablesExist() {
-    std::cout << "[TEST] Database Schema Audit: Verifying 24 Relational Entities...\n";
+void testOnlyEightTablesExist() {
+    std::cout << "[TEST] Database Schema Audit: Verifying the supported tables...\n";
     database::DbConnection db(":memory:");
     db.open();
     database::Schema::initializeSchema(db);
 
     const std::vector<std::string> expectedTables = {
         "sessions",
-        "configuration_versions",
         "processes",
-        "process_io_requests",
-        "resource_types",
-        "process_resource_claims",
-        "resource_allocations",
-        "process_disk_requests",
-        "memory_workloads",
-        "synchronization_configs",
-        "access_policies",
-        "simulation_runs",
         "simulation_events",
         "process_state_history",
-        "gantt_segments",
-        "scheduling_results",
-        "memory_results",
+        "reports",
         "deadlock_results",
-        "io_results",
-        "permission_events",
-        "experiment_results",
-        "checkpoints",
-        "event_logs",
-        "reports"
+        "access_policies",
+        "scheduling_results",
     };
 
     auto stmt = db.prepare("SELECT name FROM sqlite_master WHERE type='table' AND name NOT LIKE 'sqlite_%';");
@@ -50,13 +34,15 @@ void testAll24TablesExist() {
         actualTables.insert(stmt.getText(0));
     }
 
+    assert(actualTables.size() == expectedTables.size());
     for (const auto& table : expectedTables) {
-        if (actualTables.find(table) == actualTables.end()) {
-            std::cerr << "FAIL: Missing table '" << table << "'\n";
-            assert(false);
-        }
+        assert(actualTables.find(table) != actualTables.end());
     }
-    std::cout << "  -> All 24 required relational entities exist.\n";
+    auto sessionColumns = db.prepare("PRAGMA table_info(sessions);");
+    while (sessionColumns.step()) {
+        assert(sessionColumns.getText(1) != "metadata");
+    }
+    std::cout << "  -> Exactly eight tables exist and sessions has no metadata column.\n";
 }
 
 void testPragmaIntegrityAndForeignKeys() {
@@ -129,19 +115,12 @@ void testCascadeDelete() {
     sess.setProcesses(procs);
     sessionRepo.saveWorkload(sess, true);
 
-    runRepo.createRun("RUN-001", "WOS-20261016-0001", "CPU_SCHEDULING", "test params");
-    runRepo.recordGanttSegment("RUN-001", 0, 5, 101, false, false);
     runRepo.recordProcessStateTransition({"RUN-001", 101, 0, "NEW", "READY", "init"});
-    sessionRepo.logEvent("WOS-20261016-0001", "INFO", "TEST", "Session created");
 
     // Verify records exist before delete
     auto checkProc = db.prepare("SELECT COUNT(*) FROM processes WHERE session_id = 'WOS-20261016-0001';");
     assert(checkProc.step());
     assert(checkProc.getInt(0) == 2);
-
-    auto checkRun = db.prepare("SELECT COUNT(*) FROM simulation_runs WHERE session_id = 'WOS-20261016-0001';");
-    assert(checkRun.step());
-    assert(checkRun.getInt(0) == 1);
 
     // Delete session
     bool deleted = sessionRepo.deleteSession("WOS-20261016-0001");
@@ -152,23 +131,7 @@ void testCascadeDelete() {
     assert(postProc.step());
     assert(postProc.getInt(0) == 0);
 
-    auto postRun = db.prepare("SELECT COUNT(*) FROM simulation_runs WHERE session_id = 'WOS-20261016-0001';");
-    assert(postRun.step());
-    assert(postRun.getInt(0) == 0);
-
-    auto postGantt = db.prepare("SELECT COUNT(*) FROM gantt_segments WHERE run_id = 'RUN-001';");
-    assert(postGantt.step());
-    assert(postGantt.getInt(0) == 0);
-
-    auto postState = db.prepare("SELECT COUNT(*) FROM process_state_history WHERE run_id = 'RUN-001';");
-    assert(postState.step());
-    assert(postState.getInt(0) == 0);
-
-    auto postLogs = db.prepare("SELECT COUNT(*) FROM event_logs WHERE session_id = 'WOS-20261016-0001';");
-    assert(postLogs.step());
-    assert(postLogs.getInt(0) == 0);
-
-    std::cout << "  -> Cascade delete removed all associated child records across 5 related tables.\n";
+    std::cout << "  -> Session deletion cascades to its process records.\n";
 }
 
 void testCheckConstraints() {
@@ -201,19 +164,21 @@ void testCheckConstraints() {
     }
     assert(zeroBurstFailed);
 
-    // 3. Fault ratio > 1.0 in memory_results must fail
+    // Deadlock frequency outside the [0, 1] range must fail.
     database::RunRepository runRepo(db);
-    runRepo.createRun("RUN-002", "WOS-20261016-0002", "MEMORY", "");
-    bool invalidFaultRatioFailed = false;
+    bool invalidFrequencyFailed = false;
     try {
-        auto stmt = db.prepare("INSERT INTO memory_results (run_id, algorithm, total_references, page_faults, page_hits, fault_ratio, replacements, frames_allocated, thrashing_detected) VALUES ('RUN-002', 'FIFO', 10, 15, 0, 1.5, 5, 3, 0);");
+        auto stmt = db.prepare(
+            "INSERT INTO deadlock_results "
+            "(run_id, empirical_frequency) VALUES ('RUN-002', 1.5);"
+        );
         stmt.step();
     } catch (...) {
-        invalidFaultRatioFailed = true;
+        invalidFrequencyFailed = true;
     }
-    assert(invalidFaultRatioFailed);
+    assert(invalidFrequencyFailed);
 
-    std::cout << "  -> CHECK constraints successfully enforce non-negative arrival, positive burst, and valid fault ratios.\n";
+    std::cout << "  -> CHECK constraints enforce non-negative arrival, positive burst, and valid deadlock frequency.\n";
 }
 
 void testTransactionRollback() {
@@ -256,7 +221,7 @@ int main() {
     std::cout << "       WATCH OS — DATABASE SCHEMA & DBMS READINESS AUDIT\n";
     std::cout << "============================================================\n";
 
-    testAll24TablesExist();
+    testOnlyEightTablesExist();
     testPragmaIntegrityAndForeignKeys();
     testForeignKeyRejection();
     testCascadeDelete();

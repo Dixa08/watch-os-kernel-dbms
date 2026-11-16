@@ -1,0 +1,5 @@
+session_id,session_description,config_version,process_id,process_name,process_description,arrival_time,cpu_burst,priority,memory_demand
+WOS-20261116-020630-937F,the nlp project,1,21,process 21,bag of words,3,5,2,64
+WOS-20261116-020630-937F,the nlp project,1,22,process 22,word 2 vec,3,4,2,
+WOS-20261116-020630-937F,the nlp project,1,23,tdifd,tfidf,3,4,1,64
+WOS-20261116-020630-937F,the nlp project,1,24,process 24,glovec,2,5,3,

@@ -29,7 +29,10 @@ int main() {
         std::cout << "  Created Session ID: " << savedSessionId << "\n";
 
         // Configure with golden workload
-        session->setProcesses(watchos::test::getGoldenWorkload());
+        auto workload = watchos::test::getGoldenWorkload();
+        workload[0].setName("interactive worker");
+        workload[0].setDescription("Handles user requests");
+        session->setProcesses(workload);
 
         std::string err;
         bool ok = mgr.saveActiveSession(true, &err);
@@ -63,6 +66,8 @@ int main() {
 
         // Verify PID 1
         assert(procs[0].getPid() == 1);
+        assert(procs[0].getName() == "interactive worker");
+        assert(procs[0].getDescription() == "Handles user requests");
         assert(procs[0].getArrivalTime() == 0);
         assert(procs[0].getCpuBurst() == 5);
         assert(procs[0].getPriority() == 2);

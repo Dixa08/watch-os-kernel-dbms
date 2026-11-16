@@ -23,23 +23,57 @@
 #include "watchos/security/access_controller.hpp"
 #include "watchos/reporting/jarvis_explainer.hpp"
 #include "watchos/reporting/report_generator.hpp"
+#include "watchos/security/access_policy.hpp"
 #include <iostream>
 #include <iomanip>
+#include <sstream>
 #include <algorithm>
 #include <utility>
+
+#ifdef ARDUINO
+#define EOL "\r\n"
+#else
+#define EOL "\n"
+#endif
 
 namespace watchos {
 namespace cli {
 
 namespace {
-void pauseBeforeMenu() {
+
+// Normalizes standalone '\n' to "\r\n" on ARDUINO so multi-line sub-module reports
+// and ASCII tables align cleanly at column 0.
+void printFormatted(const std::string& text) {
 #ifdef ARDUINO
-    std::cout << "\n[Press Enter to continue...]" << std::flush;
-    std::string ignored;
-    ConsoleUi::readLine(std::cin, ignored);
+    std::string out;
+    out.reserve(text.size() + 32);
+    for (size_t i = 0; i < text.size(); ++i) {
+        if (text[i] == '\n' && (i == 0 || text[i - 1] != '\r')) {
+            out += "\r\n";
+        } else {
+            out += text[i];
+        }
+    }
+    std::cout << out << std::flush;
+#else
+    std::cout << text << std::flush;
 #endif
 }
+
+void printLine(const std::string& text = "") {
+    printFormatted(text + "\n");
 }
+
+void pauseBeforeMenu() {
+#ifdef ARDUINO
+    printFormatted("\n\r[Press Enter to continue...] ");
+    std::string ignored;
+    ConsoleUi::readLine(std::cin, ignored);
+    printLine();
+#endif
+}
+
+} // namespace
 
 AnalysisMenu::AnalysisMenu(session::Session& session, database::DbConnection& db)
     : session_(session), db_(db), runRepo_(db) {}
@@ -49,11 +83,12 @@ void AnalysisMenu::runMenuLoop() {
     while (inLoop) {
         ConsoleUi::throwIfEmergencyStopRequested();
         printAnalysisMenu();
-        std::cout << "\nWATCH OS > ";
+        printFormatted("\n\rWATCH OS > ");
         std::string line;
         if (!ConsoleUi::readLine(std::cin, line)) {
             break;
         }
+        std::cout << "\r" << std::flush;
 
         size_t first = line.find_first_not_of(" \t\r\n");
         if (first == std::string::npos) continue;
@@ -86,31 +121,33 @@ void AnalysisMenu::runMenuLoop() {
 
 void AnalysisMenu::printAnalysisMenu() {
     hardware::setTerminalMenuSuppressed(true);
-    std::cout << "\n" << AnsiTerminal::cyan() << AnsiTerminal::bold()
-              << "============================================================\n"
-              << "            WATCH OS — KERNEL ANALYSIS CONSOLE\n"
-              << "============================================================\n"
-              << AnsiTerminal::reset()
-              << "Active Session: " << session_.getSessionId() << " | Workload: " << session_.getProcesses().size() << " Processes\n\n"
-              << " 01  Find Best CPU Scheduling Algorithm\n"
-              << " 02  Run All Scheduling Algorithms\n"
-              << " 03  Display Gantt Charts\n"
-              << " 04  Show Process Lifecycle\n"
-              << " 05  Analyze Context Switching\n"
-              << " 06  Detect Starvation\n"
-              << " 07  Apply Aging and Compare\n"
-              << " 08  Run Deadlock Analysis\n"
-              << " 09  Estimate Deadlock Frequency\n"
-              << " 10  Virtual Memory Analysis\n"
-              << " 11  Disk Usage & I/O Analysis\n"
-              << " 12  Process Synchronization & IPC\n"
-              << " 13  Permissions & Protection\n"
-              << " 14  Run Complete Kernel Analysis\n"
-              << " 15  Compare Previous Runs\n"
-              << " 16  View Session Logs\n"
-              << " 17  Generate Final Report\n"
-              << " 18  Return to Main Menu\n";
-    std::cout.flush();
+    std::ostringstream menu;
+    menu << "\n" << AnsiTerminal::cyan() << AnsiTerminal::bold()
+         << "============================================================\n"
+         << "            WATCH OS — KERNEL ANALYSIS CONSOLE\n"
+         << "============================================================\n"
+         << AnsiTerminal::reset()
+         << "  Active Session : " << session_.getSessionId()
+         << " | Workload: " << session_.getProcesses().size() << " Processes\n\n"
+         << "   01  Find Best CPU Scheduling Algorithm\n"
+         << "   02  Run All Scheduling Algorithms\n"
+         << "   03  Display Gantt Charts\n"
+         << "   04  Show Process Lifecycle\n"
+         << "   05  Analyze Context Switching\n"
+         << "   06  Detect Starvation\n"
+         << "   07  Apply Aging and Compare\n"
+         << "   08  Run Deadlock Analysis\n"
+         << "   09  Estimate Deadlock Frequency\n"
+         << "   10  Virtual Memory Analysis\n"
+         << "   11  Disk Usage & I/O Analysis\n"
+         << "   12  Process Synchronization & IPC\n"
+         << "   13  Permissions & Protection\n"
+         << "   14  Run Complete Kernel Analysis\n"
+         << "   15  Compare Previous Runs\n"
+         << "   16  View Session Logs\n"
+         << "   17  Generate Final Report\n"
+         << "   18  Return to Main Menu\n";
+    printFormatted(menu.str());
     hardware::setTerminalMenuSuppressed(false);
 }
 
@@ -208,15 +245,15 @@ void AnalysisMenu::opt01_findBestScheduler() {
         ConsoleUi::printWarning("No scheduling metrics available to evaluate.");
         return;
     }
-    std::cout << "\nEvaluating best scheduling algorithm using multi-objective normalization...\n";
+    printLine("\nEvaluating best scheduling algorithm using multi-objective normalization...");
     auto ranking = scheduler::RecommendationEngine::evaluateAndRank(cachedMetrics_);
-    std::cout << scheduler::RecommendationEngine::formatComparisonTable(ranking) << "\n";
+    printLine(scheduler::RecommendationEngine::formatComparisonTable(ranking));
     if (!ranking.empty()) {
         hardware::publishGanttChart(ranking.front().metrics);
     }
 }
 
-void AnalysisMenu::opt02_runAllSchedulers() {
+void AnalysisMenu::opt02_runAllSchedulers(bool showOutput) {
     if (session_.getProcesses().empty()) {
         ConsoleUi::printWarning("No processes configured in this session. Add processes in Configuration Menu before running simulation.");
         return;
@@ -224,12 +261,12 @@ void AnalysisMenu::opt02_runAllSchedulers() {
 
     std::string runId = core::IdGenerator::generateRunId();
     latestRunId_ = runId;
-    std::cout << "\n[RUN] Creating new analysis run...\n";
-    std::cout << "[RUN] Session: " << session_.getSessionId() << "\n";
-    std::cout << "[RUN] Run ID: " << runId << "\n";
-    std::cout << "[RUN] Algorithm set: FCFS, SJF, SRTF, Priority (Non-Preemptive), Priority (Preemptive), Round Robin\n\n";
-
-    runRepo_.createRun(runId, session_.getSessionId(), "CPU_SCHEDULING", "Algorithms: FCFS, SJF, SRTF, Priority, RR");
+    if (showOutput) {
+        printLine("\n[RUN] Creating new analysis run...");
+        printLine("[RUN] Session : " + session_.getSessionId());
+        printLine("[RUN] Run ID  : " + runId);
+        printLine("[RUN] Set     : FCFS, SJF, SRTF, Priority (Non-Preemptive), Priority (Preemptive), Round Robin\n");
+    }
 
     cachedMetrics_.clear();
 
@@ -258,7 +295,7 @@ void AnalysisMenu::opt02_runAllSchedulers() {
     runScheduler(priPreempt, cachedMetrics_);
     runScheduler(rr, cachedMetrics_);
 
-    // Persist scheduling results & Gantt segments
+    // Persist the supported scheduling result records.
     for (const auto& agg : cachedMetrics_) {
         for (const auto& pr : agg.processResults) {
             database::SchedulingResultRecord rec;
@@ -273,26 +310,25 @@ void AnalysisMenu::opt02_runAllSchedulers() {
             rec.responseTime = pr.responseTime;
             runRepo_.recordSchedulingResult(rec);
         }
-        for (const auto& seg : agg.ganttSegments) {
-            runRepo_.recordGanttSegment(runId, seg.startTime, seg.endTime, seg.pid, seg.isIdle, seg.isContextSwitch);
+    }
+
+    if (showOutput) {
+        std::ostringstream tbl;
+        tbl << "+--------------------------------+---------+---------+---------+-------+---------+\n"
+            << "| Algorithm                      | Avg WT  | Avg TAT | Avg RT  | CS    | CPU Util|\n"
+            << "+--------------------------------+---------+---------+---------+-------+---------+\n";
+        for (const auto& m : cachedMetrics_) {
+            tbl << "| " << std::left << std::setw(30) << m.algorithmName << std::right
+                << " | " << std::setw(7) << std::fixed << std::setprecision(2) << m.avgWaitingTime
+                << " | " << std::setw(7) << m.avgTurnaroundTime
+                << " | " << std::setw(7) << m.avgResponseTime
+                << " | " << std::setw(5) << m.totalContextSwitches
+                << " | " << std::setw(6) << m.cpuUtilization << "% |\n";
         }
+        tbl << "+--------------------------------+---------+---------+---------+-------+---------+\n";
+        printFormatted(tbl.str());
+        ConsoleUi::printSuccess("Scheduling results saved to SQLite under Run ID: " + runId);
     }
-
-    runRepo_.updateRunStatus(runId, "COMPLETED");
-
-    std::cout << "+--------------------------------+---------+---------+---------+-------+---------+\n";
-    std::cout << "| Algorithm                      | Avg WT  | Avg TAT | Avg RT  | CS    | CPU Util|\n";
-    std::cout << "+--------------------------------+---------+---------+---------+-------+---------+\n";
-    for (const auto& m : cachedMetrics_) {
-        std::cout << "| " << std::left << std::setw(30) << m.algorithmName << std::right
-                  << " | " << std::setw(7) << std::fixed << std::setprecision(2) << m.avgWaitingTime
-                  << " | " << std::setw(7) << m.avgTurnaroundTime
-                  << " | " << std::setw(7) << m.avgResponseTime
-                  << " | " << std::setw(5) << m.totalContextSwitches
-                  << " | " << std::setw(6) << m.cpuUtilization << "% |\n";
-    }
-    std::cout << "+--------------------------------+---------+---------+---------+-------+---------+\n";
-    ConsoleUi::printSuccess("Results saved successfully to SQLite under Run ID: " + runId);
 }
 
 void AnalysisMenu::opt03_displayGanttCharts() {
@@ -301,15 +337,15 @@ void AnalysisMenu::opt03_displayGanttCharts() {
         return;
     }
     ensureSchedulersRun();
-    std::cout << "\n============================================================\n";
-    std::cout << "                   GANTT CHART VISUALIZER\n";
-    std::cout << "============================================================\n";
+    printLine("\n============================================================");
+    printLine("                   GANTT CHART VISUALIZER");
+    printLine("============================================================");
     for (const auto& agg : cachedMetrics_) {
-        std::cout << scheduler::GanttChart::render(agg.algorithmName, agg.ganttSegments);
+        printFormatted(scheduler::GanttChart::render(agg.algorithmName, agg.ganttSegments));
     }
     const auto ranking = scheduler::RecommendationEngine::evaluateAndRank(cachedMetrics_);
     if (!ranking.empty()) {
-        std::cout << "\nRecommended Gantt chart for TFT: " << ranking.front().algorithmName << "\n";
+        printLine("\nRecommended Gantt chart for TFT: " + ranking.front().algorithmName);
         hardware::publishGanttChart(ranking.front().metrics);
     }
 }
@@ -319,19 +355,17 @@ void AnalysisMenu::opt04_showProcessLifecycle() {
         ConsoleUi::printWarning("No processes configured in this session.");
         return;
     }
-    std::cout << "\n============================================================\n";
-    std::cout << "                 PROCESS LIFECYCLE TRACKER\n";
-    std::cout << "============================================================\n";
+    printLine("\n============================================================");
+    printLine("                 PROCESS LIFECYCLE TRACKER");
+    printLine("============================================================");
     process::LifecycleSimulator sim(session_.getProcesses());
 
     std::string runId = latestRunId_.empty() ? core::IdGenerator::generateRunId() : latestRunId_;
     if (latestRunId_.empty()) {
         latestRunId_ = runId;
-        runRepo_.createRun(runId, session_.getSessionId(), "PROCESS_LIFECYCLE", "State transitions tracking");
     }
 
     core::TimeUnits t = 0;
-    // Step through process arrivals and simulated execution
     for (const auto& p : session_.getProcesses()) {
         sim.transition(p.getPid(), core::ProcessState::READY, p.getArrivalTime(), "Process arrived");
         runRepo_.recordProcessStateTransition({runId, p.getPid(), p.getArrivalTime(), "NEW", "READY", "Process arrived"});
@@ -345,19 +379,21 @@ void AnalysisMenu::opt04_showProcessLifecycle() {
         runRepo_.recordProcessStateTransition({runId, p.getPid(), t, "RUNNING", "TERMINATED", "CPU burst completed"});
     }
 
-    std::cout << "+-----+---------+------------+-------------+----------+--------------------------------------+\n";
-    std::cout << "| PID | Arrival | First Start| Completion  | Total WT | Final State / Reason                 |\n";
-    std::cout << "+-----+---------+------------+-------------+----------+--------------------------------------+\n";
+    std::ostringstream tbl;
+    tbl << "+-----+---------+------------+-------------+----------+--------------------------------------+\n"
+        << "| PID | Arrival | First Start| Completion  | Total WT | Final State / Reason                 |\n"
+        << "+-----+---------+------------+-------------+----------+--------------------------------------+\n";
     for (const auto& pair : sim.getAllMetrics()) {
         const auto& m = pair.second;
-        std::cout << "| " << std::setw(3) << m.pid
-                  << " | " << std::setw(7) << m.arrivalTime
-                  << " | " << std::setw(10) << m.firstCpuStartTime
-                  << " | " << std::setw(11) << m.completionTime
-                  << " | " << std::setw(8) << m.readyQueueWait
-                  << " | " << std::left << std::setw(36) << m.terminationReason << std::right << " |\n";
+        tbl << "| " << std::setw(3) << m.pid
+            << " | " << std::setw(7) << m.arrivalTime
+            << " | " << std::setw(10) << m.firstCpuStartTime
+            << " | " << std::setw(11) << m.completionTime
+            << " | " << std::setw(8) << m.readyQueueWait
+            << " | " << std::left << std::setw(36) << m.terminationReason << std::right << " |\n";
     }
-    std::cout << "+-----+---------+------------+-------------+----------+--------------------------------------+\n";
+    tbl << "+-----+---------+------------+-------------+----------+--------------------------------------+\n";
+    printFormatted(tbl.str());
     ConsoleUi::printSuccess("Process lifecycle transitions recorded under Run ID: " + runId);
 }
 
@@ -367,16 +403,18 @@ void AnalysisMenu::opt05_analyzeContextSwitching() {
         return;
     }
     ensureSchedulersRun();
-    std::cout << "\nContext Switching Dynamics Analysis:\n";
-    std::cout << "+--------------------------------+-----------------+-----------------------+\n";
-    std::cout << "| Algorithm                      | Initial Starts  | Voluntary / Preempt CS|\n";
-    std::cout << "+--------------------------------+-----------------+-----------------------+\n";
+    std::ostringstream tbl;
+    tbl << "\nContext Switching Dynamics Analysis:\n"
+        << "+--------------------------------+-----------------+-----------------------+\n"
+        << "| Algorithm                      | Initial Starts  | Voluntary / Preempt CS|\n"
+        << "+--------------------------------+-----------------+-----------------------+\n";
     for (const auto& m : cachedMetrics_) {
-        std::cout << "| " << std::left << std::setw(30) << m.algorithmName << std::right
-                  << " | " << std::setw(15) << session_.getProcesses().size()
-                  << " | " << std::setw(21) << m.totalContextSwitches << " |\n";
+        tbl << "| " << std::left << std::setw(30) << m.algorithmName << std::right
+            << " | " << std::setw(15) << session_.getProcesses().size()
+            << " | " << std::setw(21) << m.totalContextSwitches << " |\n";
     }
-    std::cout << "+--------------------------------+-----------------+-----------------------+\n";
+    tbl << "+--------------------------------+-----------------+-----------------------+\n";
+    printFormatted(tbl.str());
 }
 
 void AnalysisMenu::opt06_detectStarvation() {
@@ -385,17 +423,17 @@ void AnalysisMenu::opt06_detectStarvation() {
         return;
     }
     ensureSchedulersRun();
-    std::cout << "\nStarvation Risk Detector (Threshold = 10 Time Units):\n";
+    printLine("\nStarvation Risk Detector (Threshold = 10 Time Units):");
     bool anyStarvation = false;
     for (const auto& m : cachedMetrics_) {
         if (m.starvationBreaches > 0) {
-            std::cout << "  - [" << m.algorithmName << "]: " << m.starvationBreaches
-                      << " processes exceeded threshold (Longest Wait: " << m.maxWaitingTime << " units).\n";
+            printLine("  - [" + m.algorithmName + "]: " + std::to_string(m.starvationBreaches)
+                      + " processes exceeded threshold (Longest Wait: " + std::to_string(m.maxWaitingTime) + " units).");
             anyStarvation = true;
         }
     }
     if (!anyStarvation) {
-        std::cout << "  [OK] No starvation threshold breaches detected for this workload across algorithms.\n";
+        printLine("  [OK] No starvation threshold breaches detected for this workload across algorithms.");
     }
 }
 
@@ -404,9 +442,9 @@ void AnalysisMenu::opt07_applyAgingAndCompare() {
         ConsoleUi::printWarning("No processes configured in this session.");
         return;
     }
-    std::cout << "\nExecuting Priority Scheduling Aging Experiment (Interval=5, Increment=1)...\n";
+    printLine("\nExecuting Priority Scheduling Aging Experiment (Interval=5, Increment=1)...");
     auto comp = scheduler::AgingAnalyzer::compare(session_.getProcesses(), session_.getSettings(), false, 5, 1, 10);
-    std::cout << scheduler::AgingAnalyzer::formatComparisonReport(comp);
+    printFormatted(scheduler::AgingAnalyzer::formatComparisonReport(comp));
 }
 
 void AnalysisMenu::opt08_runDeadlockAnalysis() {
@@ -414,27 +452,25 @@ void AnalysisMenu::opt08_runDeadlockAnalysis() {
         ConsoleUi::printWarning("No processes configured in this session.");
         return;
     }
-    std::cout << "\nExecuting Resource Allocation & Deadlock Detection Analysis...\n";
+    printLine("\nExecuting Resource Allocation & Deadlock Detection Analysis...");
     deadlock::ResourceManager rm;
     rm.loadFromWorkload(session_.getProcesses());
 
-    std::cout << rm.renderResourceAllocationGraph() << "\n";
+    printLine(rm.renderResourceAllocationGraph());
 
     std::vector<core::ProcessId> pids;
     for (const auto& p : session_.getProcesses()) pids.push_back(p.getPid());
 
     auto bankers = deadlock::BankersAlgorithm::evaluateSafeState(rm, pids);
-    std::cout << deadlock::BankersAlgorithm::formatSafeStateReport(bankers) << "\n";
+    printLine(deadlock::BankersAlgorithm::formatSafeStateReport(bankers));
 
     auto det = deadlock::DeadlockDetector::detect(rm, pids);
-    std::cout << det.report << "\n";
+    printLine(det.report);
     hardware::publishDeadlockResults(det, bankers);
 
-    // Persist deadlock results to database
     std::string runId = latestRunId_.empty() ? core::IdGenerator::generateRunId() : latestRunId_;
     if (latestRunId_.empty()) {
         latestRunId_ = runId;
-        runRepo_.createRun(runId, session_.getSessionId(), "DEADLOCK_ANALYSIS", "Bankers & RAG evaluation");
     }
 
     std::string safeSeqStr;
@@ -457,7 +493,7 @@ void AnalysisMenu::opt09_estimateDeadlockFrequency() {
         ConsoleUi::printWarning("No processes configured in this session.");
         return;
     }
-    std::cout << "\nRunning Monte Carlo Deadlock Risk Simulation (1,000 Stochastic Trials)...\n";
+    printLine("\nRunning Monte Carlo Deadlock Risk Simulation (1,000 Stochastic Trials)...");
     deadlock::ResourceManager rm;
     rm.loadFromWorkload(session_.getProcesses());
 
@@ -465,12 +501,11 @@ void AnalysisMenu::opt09_estimateDeadlockFrequency() {
     for (const auto& p : session_.getProcesses()) pids.push_back(p.getPid());
 
     auto freq = deadlock::DeadlockFrequencyEstimator::estimate(rm, pids, 1000, 42);
-    std::cout << freq.report << "\n";
+    printLine(freq.report);
 
     std::string runId = latestRunId_.empty() ? core::IdGenerator::generateRunId() : latestRunId_;
     if (latestRunId_.empty()) {
         latestRunId_ = runId;
-        runRepo_.createRun(runId, session_.getSessionId(), "DEADLOCK_MONTE_CARLO", "1000 Stochastic Trials");
     }
     runRepo_.recordDeadlockResult(runId, freq.deadlockedTrials > 0, freq.deadlockedTrials == 0, "", "", freq.totalTrials, freq.deadlockedTrials, freq.empiricalFrequency);
 }
@@ -480,26 +515,18 @@ void AnalysisMenu::opt10_virtualMemoryAnalysis() {
         ConsoleUi::printWarning("No processes configured in this session.");
         return;
     }
-    std::cout << "\nExecuting Virtual Memory & Page Replacement Analysis (Frames = 3)...\n";
+    printLine("\nExecuting Virtual Memory & Page Replacement Analysis (Frames = 3)...");
     memory::MemoryManager memMgr(16, 4);
     auto results = memMgr.runComparativeAnalysis(session_.getProcesses(), 3);
     for (const auto& res : results) {
-        std::cout << memory::PageReplacementSimulator::formatResultTable(res) << "\n";
+        printLine(memory::PageReplacementSimulator::formatResultTable(res));
     }
 
-    std::string runId = latestRunId_.empty() ? core::IdGenerator::generateRunId() : latestRunId_;
-    if (latestRunId_.empty()) {
-        latestRunId_ = runId;
-        runRepo_.createRun(runId, session_.getSessionId(), "MEMORY_ANALYSIS", "FIFO, LRU, Optimal");
-    }
-    for (const auto& r : results) {
-        runRepo_.recordMemoryResult(runId, r.algorithmName, r.totalReferences, r.pageFaults, r.pageHits, r.faultRatio, r.replacements, r.frameCount, r.thrashingDetected);
-    }
-    ConsoleUi::printSuccess("Memory paging analysis results persisted under Run ID: " + runId);
+    ConsoleUi::printSuccess("Memory paging analysis completed.");
 }
 
 void AnalysisMenu::opt11_diskUsageAndIoAnalysis() {
-    std::cout << "\nExecuting Disk Head Motion & I/O Scheduling Analysis...\n";
+    printLine("\nExecuting Disk Head Motion & I/O Scheduling Analysis...");
     std::vector<int32_t> requests = {98, 183, 37, 122, 14, 124, 65, 67};
     int32_t head = 53;
 
@@ -508,37 +535,19 @@ void AnalysisMenu::opt11_diskUsageAndIoAnalysis() {
     auto scan = io::DiskScheduler::scheduleScan(head, requests, 199, "UP");
     auto cscan = io::DiskScheduler::scheduleCscan(head, requests, 199);
 
-    std::cout << io::DiskScheduler::formatResultReport(fcfs);
-    std::cout << io::DiskScheduler::formatResultReport(sstf);
-    std::cout << io::DiskScheduler::formatResultReport(scan);
-    std::cout << io::DiskScheduler::formatResultReport(cscan);
+    printFormatted(io::DiskScheduler::formatResultReport(fcfs));
+    printFormatted(io::DiskScheduler::formatResultReport(sstf));
+    printFormatted(io::DiskScheduler::formatResultReport(scan));
+    printFormatted(io::DiskScheduler::formatResultReport(cscan));
 
-    std::string runId = latestRunId_.empty() ? core::IdGenerator::generateRunId() : latestRunId_;
-    if (latestRunId_.empty()) {
-        latestRunId_ = runId;
-        runRepo_.createRun(runId, session_.getSessionId(), "IO_DISK_SCHEDULING", "Head 53, 8 cylinder requests");
-    }
-
-    auto saveIo = [&](const io::DiskScheduleResult& r) {
-        std::string orderStr;
-        for (size_t i = 0; i < r.serviceOrder.size(); ++i) {
-            if (i > 0) orderStr += ",";
-            orderStr += std::to_string(r.serviceOrder[i]);
-        }
-        runRepo_.recordIoResult(runId, r.algorithmName, r.totalHeadMovement, r.averageHeadMovement, orderStr);
-    };
-    saveIo(fcfs);
-    saveIo(sstf);
-    saveIo(scan);
-    saveIo(cscan);
-    ConsoleUi::printSuccess("Disk I/O scheduling results persisted under Run ID: " + runId);
+    ConsoleUi::printSuccess("Disk I/O scheduling analysis completed.");
 }
 
 void AnalysisMenu::opt12_processSynchronizationAndIpc() {
-    std::cout << "\nRunning Simulated Process Synchronization & IPC Demonstration...\n";
+    printLine("\nRunning Simulated Process Synchronization & IPC Demonstration...");
     synchronization::SyncManager sync;
     sync.runProducerConsumerSimulation(5, 6);
-    std::cout << sync.formatEventLog() << "\n";
+    printLine(sync.formatEventLog());
 }
 
 void AnalysisMenu::opt13_permissionsAndProtection() {
@@ -546,31 +555,57 @@ void AnalysisMenu::opt13_permissionsAndProtection() {
         ConsoleUi::printWarning("No processes configured in this session.");
         return;
     }
-    std::cout << "\nRunning Access Protection & Memory Isolation Simulation...\n";
+    printLine("\nRunning Access Protection & Memory Isolation Simulation...");
     security::AccessController sec;
 
-    sec.assignRole(session_.getProcesses()[0].getPid(), "root");
-
     core::TimeUnits t = 1;
-    for (const auto& p : session_.getProcesses()) {
-        sec.checkAccess(p.getPid(), "user_file", "READ", t++);
-        sec.checkAccess(p.getPid(), "system_config", "WRITE", t++);
+    size_t processIndex = 0;
+    for (auto& p : session_.getProcesses()) {
+        auto& access = p.getAccessConfig();
+        const std::string role = access.isConfigured
+            ? access.userOrRole
+            : (processIndex == 0 ? "root" : "user");
+        sec.assignRole(p.getPid(), role);
+
+        const auto readDecision = sec.checkAccess(p.getPid(), "user_file", "READ", t++);
+        runRepo_.saveAccessPolicy(
+            session_.getSessionId(), role, "user_file", "READ",
+            readDecision.granted ? "ALLOW" : "DENY"
+        );
+        const auto writeDecision = sec.checkAccess(p.getPid(), "system_config", "WRITE", t++);
+        runRepo_.saveAccessPolicy(
+            session_.getSessionId(), role, "system_config", "WRITE",
+            writeDecision.granted ? "ALLOW" : "DENY"
+        );
+        if (access.isConfigured) {
+            access.requestedOperation =
+                security::normalizeAccessOperation(access.requestedOperation);
+            if (!security::isSupportedAccessOperation(access.requestedOperation)) {
+                ConsoleUi::printError(
+                    "Unsupported access operation for process " + std::to_string(p.getPid())
+                    + "; expected READ, WRITE, or EXECUTE."
+                );
+            } else {
+                const auto configuredDecision = sec.checkAccess(
+                    p.getPid(), access.resourceName, access.requestedOperation, t++
+                );
+                runRepo_.saveAccessPolicy(
+                    session_.getSessionId(),
+                    access.userOrRole,
+                    access.resourceName,
+                    access.requestedOperation,
+                    configuredDecision.granted ? "ALLOW" : "DENY"
+                );
+            }
+        }
         // Memory boundary partition test: base=1000, limit=500
         sec.checkMemoryAccess(p.getPid(), 1200, 1000, 500, t++); // Valid
         sec.checkMemoryAccess(p.getPid(), 1600, 1000, 500, t++); // Segfault
+        ++processIndex;
     }
 
-    std::cout << sec.formatAuditTable() << "\n";
-
-    std::string runId = latestRunId_.empty() ? core::IdGenerator::generateRunId() : latestRunId_;
-    if (latestRunId_.empty()) {
-        latestRunId_ = runId;
-        runRepo_.createRun(runId, session_.getSessionId(), "SECURITY_PROTECTION", "RBAC & Memory isolation audit");
-    }
-    for (const auto& ev : sec.getAuditLog()) {
-        runRepo_.recordPermissionEvent(runId, "PID " + std::to_string(ev.pid), ev.resource, ev.operation, ev.granted ? "ALLOW" : "DENY", ev.explanation);
-    }
-    ConsoleUi::printSuccess("Security access events recorded under Run ID: " + runId);
+    printLine(sec.formatAuditTable());
+    ConsoleUi::printSuccess("Security protection analysis completed.");
 }
 
 void AnalysisMenu::opt14_runCompleteKernelAnalysis() {
@@ -578,14 +613,14 @@ void AnalysisMenu::opt14_runCompleteKernelAnalysis() {
         ConsoleUi::printWarning("No processes configured in this session. Please add processes first.");
         return;
     }
-    std::cout << "\n============================================================\n";
-    std::cout << "           RUNNING COMPLETE KERNEL ANALYSIS SUITE\n";
-    std::cout << "============================================================\n";
+    printLine("\n============================================================");
+    printLine("           RUNNING COMPLETE KERNEL ANALYSIS SUITE");
+    printLine("============================================================");
     opt02_runAllSchedulers();
     if (!cachedMetrics_.empty()) {
         const auto ranking = scheduler::RecommendationEngine::evaluateAndRank(cachedMetrics_);
         if (!ranking.empty()) {
-            std::cout << "\nRecommended Scheduler: " << ranking.front().algorithmName << "\n";
+            printLine("\nRecommended Scheduler: " + ranking.front().algorithmName);
             hardware::publishGanttChart(ranking.front().metrics);
         }
     }
@@ -595,61 +630,37 @@ void AnalysisMenu::opt14_runCompleteKernelAnalysis() {
     opt13_permissionsAndProtection();
 
     if (!cachedMetrics_.empty()) {
-        std::cout << reporting::JarvisExplainer::explainSummary(session_.getSessionId(), latestRunId_, cachedMetrics_[0]);
+        printFormatted(reporting::JarvisExplainer::explainSummary(session_.getSessionId(), latestRunId_, cachedMetrics_[0]));
     }
 }
 
 void AnalysisMenu::opt15_comparePreviousRuns() {
-    auto runs = runRepo_.getRunsForSession(session_.getSessionId());
-    if (runs.empty()) {
-        std::cout << "\n[RUNS] No previous simulation runs recorded for this session.\n";
-        return;
+    printLine("\n[RUNS] Run-history metadata is not retained in the 8-table database schema.");
+    if (!latestRunId_.empty()) {
+        const auto results = runRepo_.getSchedulingResultsForRun(latestRunId_);
+        printLine("Latest scheduling result set (" + latestRunId_ + "): "
+                  + std::to_string(results.size()) + " process record(s).");
     }
-
-    std::cout << "\nSimulation Run History for Session " << session_.getSessionId() << ":\n";
-    std::cout << "+--------------------+-----------------------+-----------+------------------------------------------+\n";
-    std::cout << "| Run ID             | Timestamp             | Status    | Module Parameters                        |\n";
-    std::cout << "+--------------------+-----------------------+-----------+------------------------------------------+\n";
-    for (const auto& r : runs) {
-        std::cout << "| " << std::setw(18) << r.runId
-                  << " | " << std::setw(21) << r.createdAt
-                  << " | " << std::setw(9) << r.status
-                  << " | " << std::left << std::setw(40) << r.parameters.substr(0, 40) << std::right << " |\n";
-    }
-    std::cout << "+--------------------+-----------------------+-----------+------------------------------------------+\n";
 }
 
 void AnalysisMenu::opt16_viewSessionLogs() {
-    std::cout << "\nFetching session audit event logs from database...\n";
+    printLine("\nFetching session audit event logs from database...");
     auto events = runRepo_.getEventsForRun(latestRunId_);
     if (!events.empty()) {
-        std::cout << "+------+-----+--------------------+------------------------------------------+\n";
-        std::cout << "| Time | PID | Event Type         | Details                                  |\n";
-        std::cout << "+------+-----+--------------------+------------------------------------------+\n";
+        std::ostringstream tbl;
+        tbl << "+------+-----+--------------------+------------------------------------------+\n"
+            << "| Time | PID | Event Type         | Details                                  |\n"
+            << "+------+-----+--------------------+------------------------------------------+\n";
         for (const auto& e : events) {
-            std::cout << "| " << std::setw(4) << e.timestamp
-                      << " | " << std::setw(3) << e.entityId
-                      << " | " << std::left << std::setw(18) << e.eventType << std::right
-                      << " | " << std::left << std::setw(40) << e.details.substr(0, 40) << std::right << " |\n";
+            tbl << "| " << std::setw(4) << e.timestamp
+                << " | " << std::setw(3) << e.entityId
+                << " | " << std::left << std::setw(18) << e.eventType << std::right
+                << " | " << std::left << std::setw(40) << e.details.substr(0, 40) << std::right << " |\n";
         }
-        std::cout << "+------+-----+--------------------+------------------------------------------+\n";
-    }
-
-    auto sessionLogs = runRepo_.getEventLogsForSession(session_.getSessionId());
-    if (!sessionLogs.empty()) {
-        std::cout << "\nOperational Event Logs for Session " << session_.getSessionId() << ":\n";
-        std::cout << "+----+-------+--------------------+------------------------------------------+\n";
-        std::cout << "| ID | Level | Source             | Message                                  |\n";
-        std::cout << "+----+-------+--------------------+------------------------------------------+\n";
-        for (const auto& l : sessionLogs) {
-            std::cout << "| " << std::setw(2) << l.id
-                      << " | " << std::left << std::setw(5) << l.logLevel << std::right
-                      << " | " << std::left << std::setw(18) << l.source << std::right
-                      << " | " << std::left << std::setw(40) << l.message.substr(0, 40) << std::right << " |\n";
-        }
-        std::cout << "+----+-------+--------------------+------------------------------------------+\n";
-    } else if (events.empty()) {
-        std::cout << "No event records found for this session or latest run.\n";
+        tbl << "+------+-----+--------------------+------------------------------------------+\n";
+        printFormatted(tbl.str());
+    } else {
+        printLine("No event records found for this session or latest run.");
     }
 }
 
@@ -658,9 +669,53 @@ void AnalysisMenu::opt17_generateFinalReport() {
         ConsoleUi::printWarning("No processes configured in this session to generate report.");
         return;
     }
-    ensureSchedulersRun();
-    std::cout << "\nGenerating integrated final report...\n";
 
+    bool exportMarkdown = false;
+    bool exportCsv = false;
+    while (true) {
+        std::ostringstream prompt;
+        prompt << "\nGenerate Final Report\n"
+               << "Choose output format:\n"
+               << "  1 - Markdown\n"
+               << "  2 - CSV\n"
+               << "  3 - Both (default)\n"
+               << "Selection [1-3, default 3]: ";
+        printFormatted(prompt.str());
+
+        std::string choice;
+        if (!ConsoleUi::readLine(std::cin, choice)) {
+            ConsoleUi::printError("Could not read the report format selection.");
+            return;
+        }
+        std::cout << "\r" << std::flush;
+
+        const size_t first = choice.find_first_not_of(" \t\r\n");
+        if (first == std::string::npos) {
+            exportMarkdown = true;
+            exportCsv = true;
+            break;
+        }
+        const size_t last = choice.find_last_not_of(" \t\r\n");
+        choice = choice.substr(first, last - first + 1);
+        if (choice == "1") {
+            exportMarkdown = true;
+            break;
+        }
+        if (choice == "2") {
+            exportCsv = true;
+            break;
+        }
+        if (choice == "3") {
+            exportMarkdown = true;
+            exportCsv = true;
+            break;
+        }
+        ConsoleUi::printWarning("Invalid selection. Enter 1 for Markdown, 2 for CSV, or 3 for both.");
+    }
+
+    if (cachedMetrics_.empty()) {
+        opt02_runAllSchedulers(false);
+    }
     memory::MemoryManager memMgr(16, 4);
     deadlock::ResourceManager rm;
     rm.loadFromWorkload(session_.getProcesses());
@@ -669,8 +724,10 @@ void AnalysisMenu::opt17_generateFinalReport() {
 
     reporting::CompleteReportData reportData;
     reportData.sessionId = session_.getSessionId();
+    reportData.sessionDescription = session_.getDescription();
     reportData.runId = latestRunId_.empty() ? core::IdGenerator::generateRunId() : latestRunId_;
     reportData.generatedAt = core::IdGenerator::getCurrentTimestampIso();
+    reportData.settings = session_.getSettings();
     reportData.processes = session_.getProcesses();
     reportData.schedulingMetrics = cachedMetrics_;
     reportData.memoryResults = memMgr.runComparativeAnalysis(session_.getProcesses(), 3);
@@ -684,14 +741,48 @@ void AnalysisMenu::opt17_generateFinalReport() {
     std::string mdPath = "reports/report_" + reportData.sessionId + ".md";
     std::string csvPath = "reports/report_" + reportData.sessionId + ".csv";
 
-    reporting::ReportGenerator::exportToFile(mdPath, mdContent);
-    reporting::ReportGenerator::exportToFile(csvPath, csvContent);
+    bool markdownExported = false;
+    bool csvExported = false;
+    if (exportMarkdown) {
+        markdownExported = reporting::ReportGenerator::exportToFile(mdPath, mdContent);
+        if (markdownExported) {
+            runRepo_.saveReportRecord(
+                "RPT-" + reportData.sessionId, reportData.sessionId, reportData.runId, "MARKDOWN", mdPath
+            );
+        } else {
+            ConsoleUi::printError("Could not write Markdown report: " + mdPath);
+        }
+    }
+    if (exportCsv) {
+        csvExported = reporting::ReportGenerator::exportToFile(csvPath, csvContent);
+        if (csvExported) {
+            runRepo_.saveReportRecord(
+                "RPT-CSV-" + reportData.sessionId, reportData.sessionId, reportData.runId, "CSV", csvPath
+            );
+        } else {
+            ConsoleUi::printError("Could not write CSV report: " + csvPath);
+        }
+    }
 
-    runRepo_.saveReportRecord("RPT-" + reportData.sessionId, reportData.sessionId, reportData.runId, "MARKDOWN", mdPath);
-    runRepo_.saveReportRecord("RPT-CSV-" + reportData.sessionId, reportData.sessionId, reportData.runId, "CSV", csvPath);
+    const int requestedExports = static_cast<int>(exportMarkdown) + static_cast<int>(exportCsv);
+    const int successfulExports = static_cast<int>(markdownExported) + static_cast<int>(csvExported);
+    const char* exportStatus = successfulExports == requestedExports
+        ? "COMPLETE"
+        : (successfulExports > 0 ? "PARTIAL" : "FAILED");
 
-    ConsoleUi::printSuccess("Markdown report exported to: " + mdPath);
-    ConsoleUi::printSuccess("CSV report exported to: " + csvPath);
+    std::ostringstream summary;
+    summary << "\nFinal Report\n"
+            << "------------\n"
+            << "  Session ID : " << reportData.sessionId << '\n'
+            << "  Run ID     : " << reportData.runId << '\n'
+            << "  Status     : " << exportStatus << '\n';
+    if (exportMarkdown) {
+        summary << "  Markdown   : " << (markdownExported ? "SAVED" : "FAILED") << " (" << mdPath << ")\n";
+    }
+    if (exportCsv) {
+        summary << "  CSV        : " << (csvExported ? "SAVED" : "FAILED") << " (" << csvPath << ")\n";
+    }
+    printFormatted(summary.str());
 }
 
 } // namespace cli

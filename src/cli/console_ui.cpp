@@ -30,7 +30,7 @@ protected:
             return traits_type::not_eof(character);
         }
         const char byte = traits_type::to_char_type(character);
-        if (traits_type::eq_int_type(output_->sputc(byte), traits_type::eof())) {
+        if (!writeOutputCharacter(byte)) {
             return traits_type::eof();
         }
         hardware::appendTerminalText(std::string(1, byte));
@@ -38,7 +38,10 @@ protected:
     }
 
     std::streamsize xsputn(const char* text, std::streamsize count) override {
-        const std::streamsize written = output_->sputn(text, count);
+        std::streamsize written = 0;
+        while (written < count && writeOutputCharacter(text[written])) {
+            ++written;
+        }
         if (written > 0) {
             hardware::appendTerminalText(std::string(text, static_cast<size_t>(written)));
         }
@@ -50,7 +53,20 @@ protected:
     }
 
 private:
+    bool writeOutputCharacter(char character) {
+        if (character == '\n' && !lastOutputWasCarriageReturn_
+            && traits_type::eq_int_type(output_->sputc('\r'), traits_type::eof())) {
+            return false;
+        }
+        if (traits_type::eq_int_type(output_->sputc(character), traits_type::eof())) {
+            return false;
+        }
+        lastOutputWasCarriageReturn_ = character == '\r';
+        return true;
+    }
+
     std::streambuf* output_;
+    bool lastOutputWasCarriageReturn_ = false;
 };
 #endif
 }
@@ -84,17 +100,20 @@ bool ConsoleUi::readLine(std::istream& input, std::string& line) {
             if (skipLineFeed) {
                 skipLineFeed = false;
                 if (character == '\n') {
-                    Serial.print(character);
                     continue;
                 }
             }
 
-            Serial.print(character);
             if (character == '\r' || character == '\n') {
+                if (!line.empty() && line.back() == '\r') {
+                    line.pop_back();
+                }
+                Serial.print("\r\n");
                 hardware::appendTerminalText("\n");
                 skipLineFeed = character == '\r';
                 return true;
             }
+            Serial.print(character);
             line += character;
             hardware::appendTerminalText(std::string(1, character));
         } else {
